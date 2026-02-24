@@ -5,6 +5,7 @@ import { registerOutlineHandlers } from './ipc/outline';
 import { registerChapterHandlers } from './ipc/chapter';
 import { registerContextHandlers } from './ipc/context';
 import { registerAIHandlers } from './ipc/ai';
+import { registerSnapshotHandlers } from './ipc/snapshot';
 
 // 主进程入口
 function createWindow(): void {
@@ -34,6 +35,7 @@ app.whenReady().then(() => {
   registerChapterHandlers();
   registerContextHandlers();
   registerAIHandlers();
+  registerSnapshotHandlers();
 
   createWindow();
 
