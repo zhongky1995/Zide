@@ -2,3 +2,5 @@
 export * from './storage/FileProjectRepo';
 export * from './storage/FileOutlineRepo';
 export * from './storage/FileChapterRepo';
+export * from './index/SimpleIndex';
+export * from './index/SimpleIndexAdapter';

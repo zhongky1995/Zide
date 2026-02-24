@@ -3,6 +3,7 @@ import * as path from 'path';
 import { registerProjectHandlers } from './ipc/project';
 import { registerOutlineHandlers } from './ipc/outline';
 import { registerChapterHandlers } from './ipc/chapter';
+import { registerContextHandlers } from './ipc/context';
 
 // 主进程入口
 function createWindow(): void {
@@ -30,6 +31,7 @@ app.whenReady().then(() => {
   registerProjectHandlers();
   registerOutlineHandlers();
   registerChapterHandlers();
+  registerContextHandlers();
 
   createWindow();
 
