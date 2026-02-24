@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "npm run build -w @zide/domain -w @zide/application -w @zide/desktop",
     "dev:desktop": "npm run dev -w @zide/desktop",
     "build:desktop": "npm run build -w @zide/desktop",
     "test": "npm test",

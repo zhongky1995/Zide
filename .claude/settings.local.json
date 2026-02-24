@@ -5,7 +5,11 @@
       "Bash(npm run:*)",
       "Bash(git init:*)",
       "Bash(cd:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(gh auth:*)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)"
     ]
   }
 }
