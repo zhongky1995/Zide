@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
+import { registerProjectHandlers } from './ipc/project';
 
 // 主进程入口
 function createWindow(): void {
@@ -23,6 +24,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // 注册 IPC 处理器
+  registerProjectHandlers();
+
   createWindow();
 
   app.on('activate', () => {

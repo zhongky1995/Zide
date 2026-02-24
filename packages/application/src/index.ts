@@ -6,3 +6,6 @@ export * from './ports/LLMPort';
 export * from './ports/IndexPort';
 export * from './ports/ExportPort';
 export * from './ports/RuleEnginePort';
+
+// 用例导出
+export * from './usecases/CreateProjectUseCase';

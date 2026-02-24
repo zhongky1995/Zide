@@ -14,8 +14,12 @@
     "start": "electron ."
   },
   "dependencies": {
+    "@zide/application": "1.0.0",
+    "@zide/domain": "1.0.0",
+    "@zide/infrastructure": "1.0.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

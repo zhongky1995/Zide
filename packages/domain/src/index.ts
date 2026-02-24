@@ -6,5 +6,8 @@ export * from './entities/Glossary';
 export * from './entities/CheckIssue';
 export * from './entities/ExportJob';
 
+// 领域服务导出
+export * from './services/ProjectService';
+
 // 领域错误导出
 export * from './errors/DomainError';
