@@ -121,13 +121,16 @@ export class FileProjectRepo implements ProjectRepoPort {
     id: string,
     status: 'none' | 'draft' | 'confirmed'
   ): Promise<void> {
-    await this.update(id, {} as UpdateProjectParams);
-    // 更新内存中的状态
-    const project = this.projectsCache.get(id);
-    if (project) {
-      project.outlineStatus = status;
-      await this.save(project);
+    // 直接更新并保存
+    const project = await this.findById(id);
+    if (!project) {
+      throw new Error(`Project not found: ${id}`);
     }
+
+    project.outlineStatus = status;
+    project.updatedAt = new Date().toISOString();
+    await this.save(project);
+    this.projectsCache.set(id, project);
   }
 
   async addChapter(projectId: string, chapterId: string): Promise<void> {
