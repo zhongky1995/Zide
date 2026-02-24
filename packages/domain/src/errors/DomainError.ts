@@ -7,6 +7,9 @@ export class DomainError extends Error {
   ) {
     super(message);
     this.name = 'DomainError';
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
   }
 }
 
@@ -37,6 +40,14 @@ export class ChapterContentEmptyError extends DomainError {
   constructor(chapterId: string) {
     super(`章节内容为空: ${chapterId}`, 'CHAPTER_CONTENT_EMPTY', { chapterId });
     this.name = 'ChapterContentEmptyError';
+  }
+}
+
+// 大纲相关错误
+export class OutlineNotFoundError extends DomainError {
+  constructor(projectId: string) {
+    super(`大纲不存在: 项目 ${projectId}`, 'OUTLINE_NOT_FOUND', { projectId });
+    this.name = 'OutlineNotFoundError';
   }
 }
 

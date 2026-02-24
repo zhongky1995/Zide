@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import * as path from 'path';
 import { app } from 'electron';
-import { SimpleIndexAdapter } from '@zide/infrastructure';
+import { SimpleIndexAdapter, FileProjectRepo } from '@zide/infrastructure';
 import { ContextUseCases, ProjectMetaReader } from '@zide/application';
 
 // 获取运行时基础路径
@@ -12,12 +12,15 @@ function getRuntimeBasePath(): string {
 // 创建用例实例
 function createContextUseCases(): ContextUseCases {
   const runtimeBasePath = getRuntimeBasePath();
+  const projectRepo = new FileProjectRepo(runtimeBasePath);
   const indexAdapter = new SimpleIndexAdapter(runtimeBasePath);
-  return new ContextUseCases(runtimeBasePath, indexAdapter);
+  return new ContextUseCases(projectRepo, indexAdapter);
 }
 
 function createMetaReader(): ProjectMetaReader {
-  return new ProjectMetaReader(getRuntimeBasePath());
+  const runtimeBasePath = getRuntimeBasePath();
+  const projectRepo = new FileProjectRepo(runtimeBasePath);
+  return new ProjectMetaReader(projectRepo);
 }
 
 // 注册上下文相关的 IPC 处理函数

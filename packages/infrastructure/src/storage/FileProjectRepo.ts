@@ -24,12 +24,12 @@ export class FileProjectRepo implements ProjectRepoPort {
     return path.join(this.runtimeBasePath, projectId);
   }
 
-  async create(params: CreateProjectParams): Promise<Project> {
-    const projectId = this.generateProjectId(params.name);
+  async create(params: CreateProjectParams, projectId?: string): Promise<Project> {
+    const id = projectId || this.generateProjectId(params.name);
     const now = new Date().toISOString();
 
     const project: Project = {
-      id: projectId,
+      id: id,
       name: params.name.trim(),
       type: params.type || ProjectType.OTHER,
       description: params.description,
@@ -50,7 +50,7 @@ export class FileProjectRepo implements ProjectRepoPort {
     };
 
     await this.save(project);
-    this.projectsCache.set(projectId, project);
+    this.projectsCache.set(id, project);
 
     return project;
   }
@@ -157,7 +157,121 @@ export class FileProjectRepo implements ProjectRepoPort {
     await this.save(project);
   }
 
+  async createProjectDirectory(projectId: string, params: CreateProjectParams): Promise<void> {
+    const projectPath = path.join(this.runtimeBasePath, projectId);
+
+    // 创建目录结构
+    await fs.mkdir(path.join(projectPath, 'meta'), { recursive: true });
+    await fs.mkdir(path.join(projectPath, 'chapters'), { recursive: true });
+    await fs.mkdir(path.join(projectPath, 'snapshots', 'chapter'), { recursive: true });
+    await fs.mkdir(path.join(projectPath, 'snapshots', 'global'), { recursive: true });
+    await fs.mkdir(path.join(projectPath, 'artifacts', 'references'), { recursive: true });
+    await fs.mkdir(path.join(projectPath, 'output'), { recursive: true });
+    await fs.mkdir(path.join(projectPath, 'logs'), { recursive: true });
+    await fs.mkdir(path.join(projectPath, 'outline'), { recursive: true });
+
+    // 创建 meta/project.md
+    const projectContent = `# ${params.name}
+
+- **类型**: ${params.type || '其他'}
+- **目标读者**: ${params.targetReaders || '未指定'}
+- **目标规模**: ${params.targetScale || '未指定'}
+- **描述**: ${params.description || '无'}
+
+\`\`\`yaml
+id: ${projectId}
+created_at: ${new Date().toISOString()}
+status: draft
+\`\`\`
+`;
+    await fs.writeFile(path.join(projectPath, 'meta', 'project.md'), projectContent);
+
+    // 创建 meta/constraints.md
+    const constraintsContent = `# 项目约束
+
+## 目标
+
+## 限制条件
+
+## 风格指南
+
+`;
+    await fs.writeFile(path.join(projectPath, 'meta', 'constraints.md'), constraintsContent);
+
+    // 创建 meta/glossary.md
+    const glossaryContent = `# 术语表
+
+> 本项目的专业术语定义
+
+`;
+    await fs.writeFile(path.join(projectPath, 'meta', 'glossary.md'), glossaryContent);
+
+    // 创建 outline/outline.md
+    const outlineContent = `# 大纲
+
+> 章节结构将在这里定义
+
+- [ ] 第1章：待添加
+
+`;
+    await fs.writeFile(path.join(projectPath, 'outline', 'outline.md'), outlineContent);
+  }
+
+  async getProjectContext(projectId: string): Promise<string> {
+    try {
+      const metaPath = path.join(this.runtimeBasePath, projectId, 'meta', 'project.md');
+      const content = await fs.readFile(metaPath, 'utf-8');
+      return this.extractContext(content);
+    } catch {
+      return '';
+    }
+  }
+
+  async getGlossary(projectId: string): Promise<string> {
+    try {
+      const glossaryPath = path.join(this.runtimeBasePath, projectId, 'meta', 'glossary.md');
+      return await fs.readFile(glossaryPath, 'utf-8');
+    } catch {
+      return '';
+    }
+  }
+
+  async getOutline(projectId: string): Promise<string> {
+    try {
+      const outlinePath = path.join(this.runtimeBasePath, projectId, 'outline', 'outline.md');
+      return await fs.readFile(outlinePath, 'utf-8');
+    } catch {
+      return '';
+    }
+  }
+
+  getRuntimeBasePath(): string {
+    return this.runtimeBasePath;
+  }
+
+  private extractContext(content: string): string {
+    const lines = content.split('\n');
+    const context: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith('# ')) {
+        context.push(`项目名称: ${line.replace('# ', '')}`);
+      } else if (line.startsWith('- **')) {
+        const match = line.match(/- \*\*(.+?)\*\*:?\s*(.*)/);
+        if (match) {
+          context.push(`${match[1]}: ${match[2]}`);
+        }
+      }
+    }
+
+    return context.join('\n');
+  }
+
   private async save(project: Project): Promise<void> {
+    // 确保项目目录存在
+    const projectDir = this.getProjectDir(project.id);
+    await fs.mkdir(path.join(projectDir, 'meta'), { recursive: true });
+
     const projectPath = this.getProjectPath(project.id);
     const content = this.serializeProject(project);
     await fs.writeFile(projectPath, content, 'utf-8');

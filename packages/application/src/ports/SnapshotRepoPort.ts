@@ -16,7 +16,7 @@ export interface SnapshotRepoPort {
   findByProjectId(projectId: string): Promise<Snapshot[]>;
 
   // 获取章节快照
-  findChapterSnapshots(chapterId: string): Promise<Snapshot[]>;
+  findChapterSnapshots(projectId: string, chapterId: string): Promise<Snapshot[]>;
 
   // 获取最新快照
   findLatest(projectId: string, type?: SnapshotType): Promise<Snapshot | null>;

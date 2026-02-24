@@ -3,6 +3,7 @@ import {
   ChapterStatus,
   ChapterSummary,
   UpdateChapterParams,
+  ChapterNotFoundError,
 } from '@zide/domain';
 import { ChapterRepoPort } from '../ports';
 
@@ -24,7 +25,7 @@ export class ChapterWorkbenchUseCase {
   async updateContent(projectId: string, chapterId: string, content: string): Promise<Chapter> {
     const chapter = await (this.chapterRepo as any).findByChapterId(projectId, chapterId);
     if (!chapter) {
-      throw new Error(`Chapter not found: ${chapterId}`);
+      throw new ChapterNotFoundError(chapterId);
     }
 
     // 自动计算完成度

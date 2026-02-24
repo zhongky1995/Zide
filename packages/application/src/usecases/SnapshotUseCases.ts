@@ -2,6 +2,7 @@ import {
   Snapshot,
   SnapshotType,
   CreateSnapshotParams,
+  SnapshotNotFoundError,
 } from '@zide/domain';
 import { SnapshotRepoPort } from '../ports';
 
@@ -92,7 +93,7 @@ export class SnapshotUseCases {
   }> {
     const latest = await this.snapshotRepo.findLatest(projectId, SnapshotType.CHAPTER);
     if (!latest) {
-      throw new Error('没有可用的快照');
+      throw new SnapshotNotFoundError('latest');
     }
 
     return this.snapshotRepo.rollback(latest.id);

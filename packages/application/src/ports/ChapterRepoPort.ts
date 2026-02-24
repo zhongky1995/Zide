@@ -3,6 +3,7 @@ import {
   CreateChapterParams,
   UpdateChapterParams,
   ChapterSummary,
+  AIOperation,
 } from '@zide/domain';
 
 export interface ChapterRepoPort {
@@ -47,4 +48,16 @@ export interface ChapterRepoPort {
 
   // 获取下一章节编号
   getNextNumber(projectId: string): Promise<string>;
+
+  // 保存 AI 操作记录
+  saveOperation(projectId: string, chapterId: string, operation: AIOperation): Promise<void>;
+
+  // 获取操作历史
+  getOperations(projectId: string, chapterId: string): Promise<AIOperation[]>;
+
+  // 采纳操作结果
+  adoptOperation(projectId: string, chapterId: string, operationId: string): Promise<void>;
+
+  // 获取项目运行时基础路径
+  getRuntimeBasePath(): string;
 }

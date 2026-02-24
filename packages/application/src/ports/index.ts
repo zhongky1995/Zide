@@ -7,3 +7,4 @@ export * from './LLMPort';
 export * from './IndexPort';
 export * from './ExportPort';
 export * from './RuleEnginePort';
+export * from './MetricsPort';

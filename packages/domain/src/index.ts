@@ -13,3 +13,6 @@ export * from './services/ProjectService';
 
 // 领域错误导出
 export * from './errors/DomainError';
+
+// 领域端口导出
+export * from './ports/MetricsPort';

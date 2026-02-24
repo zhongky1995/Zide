@@ -37,7 +37,7 @@ export function registerProjectHandlers(): void {
         description: config.description,
       };
 
-      const project = await useCase.execute(params, getRuntimeBasePath());
+      const project = await useCase.execute(params);
       return { success: true, data: project };
     } catch (error) {
       return {

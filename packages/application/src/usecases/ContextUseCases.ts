@@ -1,11 +1,9 @@
-import { IndexPort, ContextChunk, ContextPack } from '../ports';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { IndexPort, ContextChunk, ContextPack, ProjectRepoPort } from '../ports';
 
 // 上下文用例
 export class ContextUseCases {
   constructor(
-    private readonly runtimeBasePath: string,
+    private readonly projectRepo: ProjectRepoPort,
     private readonly indexPort: IndexPort
   ) {}
 
@@ -49,56 +47,19 @@ export class ContextUseCases {
   }
 }
 
-// 项目元信息读取器
+// 项目元信息读取器（使用 ProjectRepoPort）
 export class ProjectMetaReader {
-  constructor(private readonly runtimeBasePath: string) {}
+  constructor(private readonly projectRepo: ProjectRepoPort) {}
 
   async getProjectContext(projectId: string): Promise<string> {
-    try {
-      const metaPath = path.join(this.runtimeBasePath, projectId, 'meta', 'project.md');
-      const content = await fs.readFile(metaPath, 'utf-8');
-      return this.extractContext(content);
-    } catch {
-      return '';
-    }
+    return this.projectRepo.getProjectContext(projectId);
   }
 
   async getGlossary(projectId: string): Promise<string> {
-    try {
-      const glossaryPath = path.join(this.runtimeBasePath, projectId, 'meta', 'glossary.md');
-      const content = await fs.readFile(glossaryPath, 'utf-8');
-      return content;
-    } catch {
-      return '';
-    }
+    return this.projectRepo.getGlossary(projectId);
   }
 
   async getOutline(projectId: string): Promise<string> {
-    try {
-      const outlinePath = path.join(this.runtimeBasePath, projectId, 'outline', 'outline.md');
-      const content = await fs.readFile(outlinePath, 'utf-8');
-      return content;
-    } catch {
-      return '';
-    }
-  }
-
-  private extractContext(content: string): string {
-    // 提取标题、描述等关键信息
-    const lines = content.split('\n');
-    const context: string[] = [];
-
-    for (const line of lines) {
-      if (line.startsWith('# ')) {
-        context.push(`项目名称: ${line.replace('# ', '')}`);
-      } else if (line.startsWith('- **')) {
-        const match = line.match(/- \*\*(.+?)\*\*:?\s*(.*)/);
-        if (match) {
-          context.push(`${match[1]}: ${match[2]}`);
-        }
-      }
-    }
-
-    return context.join('\n');
+    return this.projectRepo.getOutline(projectId);
   }
 }

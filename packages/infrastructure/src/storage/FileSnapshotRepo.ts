@@ -94,9 +94,9 @@ export class FileSnapshotRepo implements SnapshotRepoPort {
     );
   }
 
-  async findChapterSnapshots(chapterId: string): Promise<Snapshot[]> {
+  async findChapterSnapshots(projectId: string, chapterId: string): Promise<Snapshot[]> {
     const snapshots: Snapshot[] = [];
-    const snapshotDir = path.join(this.runtimeBasePath, 'chapters', chapterId, 'snapshots');
+    const snapshotDir = path.join(this.runtimeBasePath, projectId, 'snapshots', 'chapter', chapterId);
 
     try {
       const files = await fs.readdir(snapshotDir);

@@ -8,3 +8,4 @@ export * from './index/SimpleIndexAdapter';
 export * from './llm/MockLLMAdapter';
 export * from './check/SimpleRuleEngine';
 export * from './export/FileExportAdapter';
+export * from './metrics/FileMetricsAdapter';

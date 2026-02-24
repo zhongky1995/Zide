@@ -4,6 +4,7 @@ import {
   CreateChapterParams,
   UpdateChapterParams,
   ChapterSummary,
+  AIOperation,
 } from '@zide/domain';
 import { ChapterRepoPort } from '@zide/application';
 import * as fs from 'fs/promises';
@@ -82,7 +83,22 @@ export class FileChapterRepo implements ChapterRepoPort {
       const content = await fs.readFile(chapterPath, 'utf-8');
       return this.parseChapterFile(content, projectId, chapterId);
     } catch {
-      return null;
+      // 如果章节不存在，自动创建一个新章节
+      const chapter: Chapter = {
+        id: chapterId,
+        projectId,
+        number: chapterId.replace('ch-', '').split('-')[0] || '01',
+        title: `第 ${chapterId.replace('ch-', '').split('-')[0] || '1'} 章`,
+        status: ChapterStatus.TODO,
+        wordCount: 0,
+        completion: 0,
+        content: '',
+        operationCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await this.save(chapter);
+      return chapter;
     }
   }
 
@@ -164,7 +180,75 @@ export class FileChapterRepo implements ChapterRepoPort {
     return String(maxNumber + 1).padStart(2, '0');
   }
 
+  async saveOperation(projectId: string, chapterId: string, operation: AIOperation): Promise<void> {
+    const opsDir = path.join(
+      this.runtimeBasePath,
+      projectId,
+      'chapters',
+      chapterId,
+      'operations'
+    );
+
+    await fs.mkdir(opsDir, { recursive: true });
+
+    const opFile = path.join(opsDir, `${operation.id}.json`);
+    await fs.writeFile(opFile, JSON.stringify(operation, null, 2));
+  }
+
+  async getOperations(projectId: string, chapterId: string): Promise<AIOperation[]> {
+    const opsDir = path.join(
+      this.runtimeBasePath,
+      projectId,
+      'chapters',
+      chapterId,
+      'operations'
+    );
+
+    try {
+      const files = await fs.readdir(opsDir);
+      const operations: AIOperation[] = [];
+
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+
+        const content = await fs.readFile(path.join(opsDir, file), 'utf-8');
+        operations.push(JSON.parse(content));
+      }
+
+      // 按时间倒序
+      return operations.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  async adoptOperation(projectId: string, chapterId: string, operationId: string): Promise<void> {
+    const opsDir = path.join(
+      this.runtimeBasePath,
+      projectId,
+      'chapters',
+      chapterId,
+      'operations'
+    );
+
+    const opFile = path.join(opsDir, `${operationId}.json`);
+    const content = await fs.readFile(opFile, 'utf-8');
+    const operation: AIOperation = JSON.parse(content);
+
+    operation.adopted = true;
+    await fs.writeFile(opFile, JSON.stringify(operation, null, 2));
+  }
+
+  getRuntimeBasePath(): string {
+    return this.runtimeBasePath;
+  }
+
   private async save(chapter: Chapter): Promise<void> {
+    const chapterDir = this.getChapterDir(chapter.projectId);
+    await fs.mkdir(chapterDir, { recursive: true });
+
     const chapterPath = this.getChapterPath(chapter.projectId, chapter.id);
     const content = this.serializeChapter(chapter);
     await fs.writeFile(chapterPath, content, 'utf-8');
@@ -189,6 +273,9 @@ export class FileChapterRepo implements ChapterRepoPort {
       lines.push(`summary: ${JSON.stringify(chapter.summary)}`);
     }
     lines.push(`operationCount: ${chapter.operationCount}`);
+    if (chapter.lastOperationId) {
+      lines.push(`lastOperationId: ${chapter.lastOperationId}`);
+    }
     lines.push(`createdAt: ${chapter.createdAt}`);
     lines.push(`updatedAt: ${chapter.updatedAt}`);
     lines.push('---');
@@ -211,6 +298,7 @@ export class FileChapterRepo implements ChapterRepoPort {
     let operationCount = 0;
     let createdAt = new Date().toISOString();
     let updatedAt = new Date().toISOString();
+    let lastOperationId: string | undefined;
     let bodyStartIndex = 0;
 
     // 解析 frontmatter
@@ -247,6 +335,8 @@ export class FileChapterRepo implements ChapterRepoPort {
           createdAt = line.replace('createdAt: ', '');
         } else if (line.startsWith('updatedAt: ')) {
           updatedAt = line.replace('updatedAt: ', '');
+        } else if (line.startsWith('lastOperationId: ')) {
+          lastOperationId = line.replace('lastOperationId: ', '');
         }
       } else if (line.startsWith('# ')) {
         title = line.replace('# ', '');
@@ -268,6 +358,7 @@ export class FileChapterRepo implements ChapterRepoPort {
       summary,
       content: body,
       operationCount,
+      lastOperationId,
       createdAt,
       updatedAt,
     };

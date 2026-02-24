@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import * as path from 'path';
 import { app } from 'electron';
+import { FileMetricsAdapter } from '@zide/infrastructure';
 import { MetricsUseCases } from '@zide/application';
 import { OperationType } from '@zide/domain';
 
@@ -11,7 +12,8 @@ function getRuntimeBasePath(): string {
 
 // 创建用例实例
 function createMetricsUseCase(): MetricsUseCases {
-  return new MetricsUseCases(getRuntimeBasePath());
+  const metricsAdapter = new FileMetricsAdapter(getRuntimeBasePath());
+  return new MetricsUseCases(metricsAdapter);
 }
 
 // 注册统计相关的 IPC 处理函数

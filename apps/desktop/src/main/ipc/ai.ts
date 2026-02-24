@@ -18,7 +18,7 @@ function createGenerateUseCase(): GenerateContentUseCase {
   const indexAdapter = new SimpleIndexAdapter(runtimeBasePath);
   const chapterRepo = new FileChapterRepo(runtimeBasePath);
 
-  return new GenerateContentUseCase(llmAdapter, indexAdapter, chapterRepo, runtimeBasePath);
+  return new GenerateContentUseCase(llmAdapter, indexAdapter, chapterRepo);
 }
 
 // 注册 AI 相关的 IPC 处理函数

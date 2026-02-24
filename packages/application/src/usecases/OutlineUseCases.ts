@@ -4,6 +4,8 @@ import {
   OutlineTemplate,
   GenerateOutlineParams,
   UpdateOutlineParams,
+  ProjectNotFoundError,
+  OutlineNotFoundError,
 } from '@zide/domain';
 import { OutlineRepoPort, ProjectRepoPort } from '../ports';
 
@@ -48,7 +50,7 @@ export class GenerateOutlineUseCase {
     // 获取项目信息
     const project = await this.projectRepo.findById(projectId);
     if (!project) {
-      throw new Error(`Project not found: ${projectId}`);
+      throw new ProjectNotFoundError(projectId);
     }
 
     // 确定章节列表
@@ -122,7 +124,7 @@ export class ManageChapterUseCase {
   ): Promise<Outline> {
     const outline = await this.outlineRepo.findByProjectId(projectId);
     if (!outline) {
-      throw new Error(`Outline not found for project: ${projectId}`);
+      throw new OutlineNotFoundError(projectId);
     }
 
     const number = String(outline.chapters.length + 1).padStart(2, '0');

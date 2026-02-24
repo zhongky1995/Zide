@@ -2,22 +2,20 @@ import {
   ChapterIntent,
   AIOperation,
   ChapterStatus,
+  ChapterNotFoundError,
 } from '@zide/domain';
 import {
   LLMPort,
   IndexPort,
   ChapterRepoPort,
 } from '../ports';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 
 // AI 内容生成用例
 export class GenerateContentUseCase {
   constructor(
     private readonly llmPort: LLMPort,
     private readonly indexPort: IndexPort,
-    private readonly chapterRepo: ChapterRepoPort,
-    private readonly runtimeBasePath: string
+    private readonly chapterRepo: ChapterRepoPort
   ) {}
 
   // 生成内容
@@ -30,7 +28,7 @@ export class GenerateContentUseCase {
     // 1. 获取章节信息
     const chapter = await this.chapterRepo.findByChapterId(projectId, chapterId);
     if (!chapter) {
-      throw new Error(`Chapter not found: ${chapterId}`);
+      throw new ChapterNotFoundError(chapterId);
     }
 
     // 2. 打包上下文
@@ -119,18 +117,7 @@ export class GenerateContentUseCase {
     chapterId: string,
     operation: AIOperation
   ): Promise<void> {
-    const opsDir = path.join(
-      this.runtimeBasePath,
-      projectId,
-      'chapters',
-      chapterId,
-      'operations'
-    );
-
-    await fs.mkdir(opsDir, { recursive: true });
-
-    const opFile = path.join(opsDir, `${operation.id}.json`);
-    await fs.writeFile(opFile, JSON.stringify(operation, null, 2));
+    await this.chapterRepo.saveOperation(projectId, chapterId, operation);
   }
 
   // 获取操作历史
@@ -138,32 +125,7 @@ export class GenerateContentUseCase {
     projectId: string,
     chapterId: string
   ): Promise<AIOperation[]> {
-    const opsDir = path.join(
-      this.runtimeBasePath,
-      projectId,
-      'chapters',
-      chapterId,
-      'operations'
-    );
-
-    try {
-      const files = await fs.readdir(opsDir);
-      const operations: AIOperation[] = [];
-
-      for (const file of files) {
-        if (!file.endsWith('.json')) continue;
-
-        const content = await fs.readFile(path.join(opsDir, file), 'utf-8');
-        operations.push(JSON.parse(content));
-      }
-
-      // 按时间倒序
-      return operations.sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    } catch {
-      return [];
-    }
+    return this.chapterRepo.getOperations(projectId, chapterId);
   }
 
   // 采纳操作结果
@@ -172,20 +134,7 @@ export class GenerateContentUseCase {
     chapterId: string,
     operationId: string
   ): Promise<void> {
-    const opsDir = path.join(
-      this.runtimeBasePath,
-      projectId,
-      'chapters',
-      chapterId,
-      'operations'
-    );
-
-    const opFile = path.join(opsDir, `${operationId}.json`);
-    const content = await fs.readFile(opFile, 'utf-8');
-    const operation: AIOperation = JSON.parse(content);
-
-    operation.adopted = true;
-    await fs.writeFile(opFile, JSON.stringify(operation, null, 2));
+    await this.chapterRepo.adoptOperation(projectId, chapterId, operationId);
   }
 
   // 检查 LLM 连接

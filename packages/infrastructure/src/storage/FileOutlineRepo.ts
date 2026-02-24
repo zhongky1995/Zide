@@ -63,7 +63,9 @@ export class FileOutlineRepo implements OutlineRepoPort {
     await this.save(outline);
 
     // 创建章节文件
-    const chapterPath = path.join(this.getChaptersDir(projectId), `${chapter.number}.md`);
+    const chaptersDir = this.getChaptersDir(projectId);
+    await fs.mkdir(chaptersDir, { recursive: true });
+    const chapterPath = path.join(chaptersDir, `${chapter.number}.md`);
     const chapterContent = `# ${chapter.title}\n\n${chapter.target || ''}\n`;
     await fs.writeFile(chapterPath, chapterContent, 'utf-8');
 
@@ -96,7 +98,13 @@ export class FileOutlineRepo implements OutlineRepoPort {
       this.getChaptersDir(projectId),
       `${chapterFile.number}.md`
     );
-    const content = await fs.readFile(chapterPath, 'utf-8');
+    let content = '';
+    try {
+      content = await fs.readFile(chapterPath, 'utf-8');
+    } catch {
+      // 文件不存在则跳过
+      return outline;
+    }
     // 更新标题
     const updatedContent = content.replace(
       /^# .+$/m,

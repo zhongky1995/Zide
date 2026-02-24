@@ -1,8 +1,8 @@
 import { Project, CreateProjectParams, UpdateProjectParams } from '@zide/domain';
 
 export interface ProjectRepoPort {
-  // 创建项目
-  create(params: CreateProjectParams): Promise<Project>;
+  // 创建项目（可选传入projectId）
+  create(params: CreateProjectParams, projectId?: string): Promise<Project>;
 
   // 根据 ID 获取项目
   findById(id: string): Promise<Project | null>;
@@ -24,4 +24,19 @@ export interface ProjectRepoPort {
 
   // 从项目移除章节
   removeChapter(projectId: string, chapterId: string): Promise<void>;
+
+  // 创建项目目录结构
+  createProjectDirectory(projectId: string, params: CreateProjectParams): Promise<void>;
+
+  // 获取项目上下文（用于AI生成）
+  getProjectContext(projectId: string): Promise<string>;
+
+  // 获取术语表
+  getGlossary(projectId: string): Promise<string>;
+
+  // 获取大纲
+  getOutline(projectId: string): Promise<string>;
+
+  // 获取项目运行时基础路径
+  getRuntimeBasePath(): string;
 }
