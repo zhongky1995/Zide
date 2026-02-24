@@ -1,0 +1,155 @@
+import {
+  Outline,
+  OutlineChapter,
+  OutlineTemplate,
+  GenerateOutlineParams,
+  UpdateOutlineParams,
+} from '@zide/domain';
+import { OutlineRepoPort, ProjectRepoPort } from '../ports';
+
+// 大纲模板预定义结构
+const TEMPLATES: Record<OutlineTemplate, string[]> = {
+  [OutlineTemplate.STANDARD]: [
+    '项目背景',
+    '问题分析',
+    '解决方案',
+    '实施计划',
+    '总结与展望',
+  ],
+  [OutlineTemplate.RESEARCH]: [
+    '摘要',
+    '引言',
+    '研究方法',
+    '研究结果',
+    '讨论与分析',
+    '结论',
+  ],
+  [OutlineTemplate.NOVEL]: [
+    '楔子',
+    '第一章：起因',
+    '第二章：冲突',
+    '第三章：高潮',
+    '第四章：结局',
+    '尾声',
+  ],
+  [OutlineTemplate.CUSTOM]: [],
+};
+
+// 生成大纲用例
+export class GenerateOutlineUseCase {
+  constructor(
+    private readonly outlineRepo: OutlineRepoPort,
+    private readonly projectRepo: ProjectRepoPort
+  ) {}
+
+  async execute(params: GenerateOutlineParams): Promise<Outline> {
+    const { projectId, template, chapterCount, customChapters } = params;
+
+    // 获取项目信息
+    const project = await this.projectRepo.findById(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    // 确定章节列表
+    let chapterTitles: string[];
+    if (customChapters && customChapters.length > 0) {
+      chapterTitles = customChapters;
+    } else {
+      const templateKey = template || OutlineTemplate.STANDARD;
+      chapterTitles = TEMPLATES[templateKey];
+      if (chapterCount && chapterCount > chapterTitles.length) {
+        // 如果需要更多章节，在中间插入
+        const additional = chapterCount - chapterTitles.length;
+        const middleIndex = Math.floor(chapterTitles.length / 2);
+        for (let i = 0; i < additional; i++) {
+          chapterTitles.splice(middleIndex + i, 0, `第${middleIndex + i + 1}章`);
+        }
+      }
+    }
+
+    // 生成大纲章节
+    const chapters: OutlineChapter[] = chapterTitles.map((title, index) => ({
+      id: `ch-${String(index + 1).padStart(2, '0')}`,
+      number: String(index + 1).padStart(2, '0'),
+      title,
+      status: 'pending',
+    }));
+
+    // 创建大纲
+    const outline: Outline = {
+      projectId,
+      chapters,
+      status: 'draft',
+      generatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await this.outlineRepo.save(outline);
+
+    // 更新项目大纲状态
+    await this.projectRepo.updateOutlineStatus(projectId, 'draft');
+
+    return outline;
+  }
+}
+
+// 更新大纲用例
+export class UpdateOutlineUseCase {
+  constructor(private readonly outlineRepo: OutlineRepoPort) {}
+
+  async execute(projectId: string, params: UpdateOutlineParams): Promise<Outline> {
+    return this.outlineRepo.update(projectId, params);
+  }
+
+  async confirm(projectId: string): Promise<Outline> {
+    return this.outlineRepo.confirm(projectId);
+  }
+
+  async getOutline(projectId: string): Promise<Outline | null> {
+    return this.outlineRepo.findByProjectId(projectId);
+  }
+}
+
+// 章节管理用例
+export class ManageChapterUseCase {
+  constructor(private readonly outlineRepo: OutlineRepoPort) {}
+
+  async addChapter(
+    projectId: string,
+    title: string,
+    target?: string
+  ): Promise<Outline> {
+    const outline = await this.outlineRepo.findByProjectId(projectId);
+    if (!outline) {
+      throw new Error(`Outline not found for project: ${projectId}`);
+    }
+
+    const number = String(outline.chapters.length + 1).padStart(2, '0');
+    const chapter: OutlineChapter = {
+      id: `ch-${number}-${Date.now()}`,
+      number,
+      title,
+      target,
+      status: 'pending',
+    };
+
+    return this.outlineRepo.addChapter(projectId, chapter);
+  }
+
+  async updateChapter(
+    projectId: string,
+    chapterId: string,
+    updates: Partial<OutlineChapter>
+  ): Promise<Outline> {
+    return this.outlineRepo.updateChapter(projectId, chapterId, updates);
+  }
+
+  async deleteChapter(projectId: string, chapterId: string): Promise<Outline> {
+    return this.outlineRepo.deleteChapter(projectId, chapterId);
+  }
+
+  async reorderChapters(projectId: string, chapterIds: string[]): Promise<Outline> {
+    return this.outlineRepo.reorderChapters(projectId, chapterIds);
+  }
+}
