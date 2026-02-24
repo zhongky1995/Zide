@@ -6,6 +6,7 @@ export * from './entities/Snapshot';
 export * from './entities/Glossary';
 export * from './entities/CheckIssue';
 export * from './entities/ExportJob';
+export * from './entities/OperationLog';
 
 // 领域服务导出
 export * from './services/ProjectService';

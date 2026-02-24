@@ -8,6 +8,7 @@ import { registerAIHandlers } from './ipc/ai';
 import { registerSnapshotHandlers } from './ipc/snapshot';
 import { registerCheckHandlers } from './ipc/check';
 import { registerExportHandlers } from './ipc/export';
+import { registerMetricsHandlers } from './ipc/metrics';
 
 // 主进程入口
 function createWindow(): void {
@@ -40,6 +41,7 @@ app.whenReady().then(() => {
   registerSnapshotHandlers();
   registerCheckHandlers();
   registerExportHandlers();
+  registerMetricsHandlers();
 
   createWindow();
 

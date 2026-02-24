@@ -17,3 +17,4 @@ export * from './usecases/SnapshotUseCases';
 export * from './usecases/GenerateContentUseCase';
 export * from './usecases/CheckUseCases';
 export * from './usecases/ExportUseCases';
+export * from './usecases/MetricsUseCases';
