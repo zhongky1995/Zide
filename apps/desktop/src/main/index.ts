@@ -4,6 +4,7 @@ import { registerProjectHandlers } from './ipc/project';
 import { registerOutlineHandlers } from './ipc/outline';
 import { registerChapterHandlers } from './ipc/chapter';
 import { registerContextHandlers } from './ipc/context';
+import { registerAIHandlers } from './ipc/ai';
 
 // 主进程入口
 function createWindow(): void {
@@ -32,6 +33,7 @@ app.whenReady().then(() => {
   registerOutlineHandlers();
   registerChapterHandlers();
   registerContextHandlers();
+  registerAIHandlers();
 
   createWindow();
 
