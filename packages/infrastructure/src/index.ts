@@ -7,3 +7,4 @@ export * from './index/SimpleIndex';
 export * from './index/SimpleIndexAdapter';
 export * from './llm/MockLLMAdapter';
 export * from './check/SimpleRuleEngine';
+export * from './export/FileExportAdapter';
