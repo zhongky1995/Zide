@@ -14,7 +14,8 @@
       "Bash(cd /Users/Zhuanz/Desktop/ccode/Zide/packages/application && rm -rf dist && npm run build 2>&1)",
       "Bash(cd /Users/Zhuanz/Desktop/ccode/Zide/packages/domain && rm -rf dist && npm run build 2>&1)",
       "Bash(cd /Users/Zhuanz/Desktop/ccode/Zide/packages/infrastructure && rm -rf dist && npm run build 2>&1)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm install && cd /Users/Zhuanz/Desktop/ccode/Zide/packages/infrastructure && rm -rf dist && npm run build 2>&1)"
     ]
   }
 }

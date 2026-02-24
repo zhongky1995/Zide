@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { registerProjectHandlers } from './ipc/project';
 import { registerOutlineHandlers } from './ipc/outline';
+import { registerChapterHandlers } from './ipc/chapter';
 
 // 主进程入口
 function createWindow(): void {
@@ -28,6 +29,7 @@ app.whenReady().then(() => {
   // 注册 IPC 处理器
   registerProjectHandlers();
   registerOutlineHandlers();
+  registerChapterHandlers();
 
   createWindow();
 
