@@ -6,6 +6,7 @@ export * from './storage/FileSnapshotRepo';
 export * from './index/SimpleIndex';
 export * from './index/SimpleIndexAdapter';
 export * from './llm/MockLLMAdapter';
+export * from './llm/RealLLMAdapter';
 export * from './check/SimpleRuleEngine';
 export * from './export/FileExportAdapter';
 export * from './metrics/FileMetricsAdapter';

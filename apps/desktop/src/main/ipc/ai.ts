@@ -1,10 +1,14 @@
 import { ipcMain } from 'electron';
 import * as path from 'path';
 import { app } from 'electron';
-import { MockLLMAdapter, SimpleIndexAdapter } from '@zide/infrastructure';
-import { FileChapterRepo } from '@zide/infrastructure';
+import { MockLLMAdapter, RealLLMAdapter, SimpleIndexAdapter, FileChapterRepo } from '@zide/infrastructure';
 import { GenerateContentUseCase } from '@zide/application';
 import { ChapterIntent } from '@zide/domain';
+import { LLMProviderConfig } from '@zide/application';
+
+// LLM 适配器实例（单例）
+let llmAdapter: MockLLMAdapter | RealLLMAdapter = new MockLLMAdapter();
+let useRealLLM = false;
 
 // 获取运行时基础路径
 function getRuntimeBasePath(): string {
@@ -14,7 +18,6 @@ function getRuntimeBasePath(): string {
 // 创建用例实例
 function createGenerateUseCase(): GenerateContentUseCase {
   const runtimeBasePath = getRuntimeBasePath();
-  const llmAdapter = new MockLLMAdapter();
   const indexAdapter = new SimpleIndexAdapter(runtimeBasePath);
   const chapterRepo = new FileChapterRepo(runtimeBasePath);
 
@@ -226,6 +229,49 @@ export function registerAIHandlers(): void {
       return { success: true, data: config };
     } catch (error) {
       return { success: false, error: '获取配置失败' };
+    }
+  });
+
+  // 更新 LLM 配置
+  ipcMain.handle('ai:updateConfig', async (_event, config: Partial<LLMProviderConfig>) => {
+    try {
+      // 如果配置了 apiKey 或切换到真实模型，切换到真实适配器
+      if (config.apiKey || config.provider === 'openai' || config.provider === 'anthropic' ||
+          config.provider === 'minimax' || config.provider === 'kimi') {
+        if (!useRealLLM || !(llmAdapter instanceof RealLLMAdapter)) {
+          llmAdapter = new RealLLMAdapter();
+          useRealLLM = true;
+        }
+        llmAdapter.updateConfig(config);
+      } else {
+        // 否则使用 mock 适配器
+        if (!(llmAdapter instanceof MockLLMAdapter)) {
+          llmAdapter = new MockLLMAdapter();
+          useRealLLM = false;
+        }
+        llmAdapter.updateConfig(config);
+      }
+
+      return { success: true, data: llmAdapter.getConfig() };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : '更新配置失败' };
+    }
+  });
+
+  // 切换 LLM 适配器（mock / real）
+  ipcMain.handle('ai:switchAdapter', async (_event, useReal: boolean) => {
+    try {
+      if (useReal && !(llmAdapter instanceof RealLLMAdapter)) {
+        llmAdapter = new RealLLMAdapter();
+        useRealLLM = true;
+      } else if (!useReal && !(llmAdapter instanceof MockLLMAdapter)) {
+        llmAdapter = new MockLLMAdapter();
+        useRealLLM = false;
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: '切换适配器失败' };
     }
   });
 }

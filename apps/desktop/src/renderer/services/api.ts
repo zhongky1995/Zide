@@ -43,6 +43,7 @@ declare global {
       adoptOperation: (projectId: string, chapterId: string, operationId: string) => Promise<any>;
       aiPing: () => Promise<any>;
       aiGetConfig: () => Promise<any>;
+      aiUpdateConfig: (config: any) => Promise<any>;
 
       // 上下文操作
       packContext: (projectId: string, chapterId: string) => Promise<any>;
@@ -238,5 +239,66 @@ export const metricsApi = {
   async getGlobal(): Promise<ProjectMetrics[]> {
     const result = await api.getGlobalMetrics();
     return extractData<ProjectMetrics[]>(result) || [];
+  },
+};
+
+// 检查API
+export const checkApi = {
+  async run(projectId: string): Promise<any> {
+    const result = await api.runCheck(projectId);
+    return result?.success ? result.data : null;
+  },
+
+  async getMissingChapters(projectId: string): Promise<any[]> {
+    const result = await api.checkMissingChapters(projectId);
+    return extractData<any[]>(result) || [];
+  },
+
+  async getTermConsistency(projectId: string): Promise<any[]> {
+    const result = await api.checkTermConsistency(projectId);
+    return extractData<any[]>(result) || [];
+  },
+
+  async getDuplicateContent(projectId: string): Promise<any[]> {
+    const result = await api.checkDuplicateContent(projectId);
+    return extractData<any[]>(result) || [];
+  },
+
+  async resolveIssue(projectId: string, issue: any): Promise<boolean> {
+    const result = await api.resolveIssue(projectId, issue);
+    return result?.success || false;
+  },
+
+  async ignoreIssue(projectId: string, issue: any): Promise<boolean> {
+    const result = await api.ignoreIssue(projectId, issue);
+    return result?.success || false;
+  },
+};
+
+// 导出API
+export const exportApi = {
+  async export(projectId: string, format: string): Promise<any> {
+    const result = await api.exportProject(projectId, format);
+    return result?.success ? result.data : null;
+  },
+
+  async exportChapters(projectId: string, chapterIds: string[], format: string): Promise<any> {
+    const result = await api.exportChapters(projectId, chapterIds, format);
+    return result?.success ? result.data : null;
+  },
+
+  async preview(projectId: string, format: string): Promise<string> {
+    const result = await api.exportPreview(projectId, format);
+    return extractData<string>(result) || '';
+  },
+
+  async history(projectId: string): Promise<any[]> {
+    const result = await api.getExportHistory(projectId);
+    return extractData<any[]>(result) || [];
+  },
+
+  async openDir(): Promise<boolean> {
+    const result = await api.openExportDir();
+    return result?.success || false;
   },
 };

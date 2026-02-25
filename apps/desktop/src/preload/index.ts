@@ -63,6 +63,8 @@ const api = {
     ipcRenderer.invoke('ai:adoptOperation', projectId, chapterId, operationId),
   aiPing: () => ipcRenderer.invoke('ai:ping'),
   aiGetConfig: () => ipcRenderer.invoke('ai:getConfig'),
+  aiUpdateConfig: (config: any) => ipcRenderer.invoke('ai:updateConfig', config),
+  aiSwitchAdapter: (useReal: boolean) => ipcRenderer.invoke('ai:switchAdapter', useReal),
 
   // ========== 上下文操作 ==========
   packContext: (projectId: string, chapterId: string) =>
@@ -74,6 +76,7 @@ const api = {
   rebuildIndex: (projectId: string) => ipcRenderer.invoke('context:rebuildIndex', projectId),
   getIndexStats: (projectId: string) => ipcRenderer.invoke('context:getStats', projectId),
   getProjectContext: (projectId: string) => ipcRenderer.invoke('context:getProjectContext', projectId),
+  clearIndex: (projectId: string) => ipcRenderer.invoke('context:clearIndex', projectId),
 
   // ========== 快照操作 ==========
   createChapterSnapshot: (projectId: string, chapterId: string, operationId?: string) =>

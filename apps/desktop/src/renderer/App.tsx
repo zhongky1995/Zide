@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
-import { projectApi, outlineApi, chapterApi, aiApi, snapshotApi, metricsApi } from './services/api';
+import { projectApi, outlineApi, chapterApi, aiApi, snapshotApi, metricsApi, checkApi, exportApi } from './services/api';
 import type { Project, ChapterSummary, Chapter, Outline, ProjectMetrics } from './types/api';
+
+// ============ LLM配置类型 ============
+interface LLMConfig {
+  provider: string;
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+  temperature: number;
+  maxTokens: number;
+}
 
 // ============ 通用组件 ============
 
@@ -27,14 +37,60 @@ function Loading() {
   );
 }
 
+// ============ Toast 通知组件 ============
+interface Toast {
+  id: number;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
+function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: number) => void }) {
+  return (
+    <div className="toast-container">
+      {toasts.map(toast => (
+        <div key={toast.id} className={`toast ${toast.type}`} onClick={() => onRemove(toast.id)}>
+          {toast.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useToast() {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3000);
+  }, []);
+
+  const removeToast = useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  return { toasts, addToast, removeToast };
+}
+
 // ============ 项目列表页面 ============
 
-function ProjectList() {
+interface PageProps {
+  addToast?: (message: string, type: 'success' | 'error' | 'info') => void;
+}
+
+function ProjectList({ addToast }: PageProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', type: 'standard', description: '', readers: '', scale: '' });
   const navigate = useNavigate();
+
+  // 改进：添加设置入口
+  const handleOpenSettings = () => {
+    navigate('/settings');
+  };
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -64,7 +120,7 @@ function ProjectList() {
       }
     } catch (error) {
       console.error('创建项目失败:', error);
-      alert('创建项目失败，请重试');
+      addToast?.('创建项目失败，请重试', 'error');
     }
   };
 
@@ -76,7 +132,7 @@ function ProjectList() {
         loadProjects();
       } catch (error) {
         console.error('删除项目失败:', error);
-        alert('删除项目失败，请重试');
+        addToast?.('删除项目失败，请重试', 'error');
       }
     }
   };
@@ -87,7 +143,10 @@ function ProjectList() {
     <div>
       <div className="page-header">
         <h1 className="page-title">我的项目</h1>
-        <button className="btn-primary" onClick={() => setShowModal(true)}>+ 新建项目</button>
+        <div className="flex gap-2">
+          <button className="btn-secondary" onClick={handleOpenSettings}>设置</button>
+          <button className="btn-primary" onClick={() => setShowModal(true)}>+ 新建项目</button>
+        </div>
       </div>
 
       {projects.length === 0 ? (
@@ -176,12 +235,12 @@ function ProjectList() {
 
 // ============ 项目工作台页面 ============
 
-function ProjectWorkspace() {
+function ProjectWorkspace({ addToast }: PageProps) {
   const { projectId } = useParams<{ projectId: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'outline' | 'chapters' | 'metrics'>('outline');
+  const [activeTab, setActiveTab] = useState<'outline' | 'chapters' | 'metrics' | 'check' | 'export'>('outline');
   const [outline, setOutline] = useState<Outline | null>(null);
   const [metrics, setMetrics] = useState<ProjectMetrics | null>(null);
   const navigate = useNavigate();
@@ -204,11 +263,33 @@ function ProjectWorkspace() {
     loadData();
   }, [loadData]);
 
+  // 大纲相关状态
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('standard');
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+
   const handleGenerateOutline = async () => {
     if (!projectId) return;
-    const result = await outlineApi.generate(projectId);
+    setShowTemplateModal(true);
+  };
+
+  const handleConfirmGenerate = async (template: string, chapterCount?: number) => {
+    if (!projectId) return;
+    const result = await outlineApi.generate(projectId, template, chapterCount);
     if (result) {
       setOutline(result);
+    }
+    setShowTemplateModal(false);
+  };
+
+  const handleDeleteChapter = async (chapterId: string) => {
+    if (!projectId) return;
+    const confirmed = confirm('确定要删除这个章节吗？');
+    if (!confirmed) return;
+
+    // 直接使用 ipc 调用删除章节
+    const result = await window.zide.deleteChapter(projectId, chapterId);
+    if (result?.success) {
+      loadData();
     }
   };
 
@@ -270,12 +351,24 @@ function ProjectWorkspace() {
         >
           项目统计
         </button>
+        <button
+          className={`btn ${activeTab === 'check' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('check')}
+        >
+          整体检查
+        </button>
+        <button
+          className={`btn ${activeTab === 'export' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('export')}
+        >
+          导出中心
+        </button>
       </div>
 
       {activeTab === 'outline' && (
         <div className="card">
           <div className="flex justify-between items-center mb-4">
-            <h3>大纲</h3>
+            <h3>大纲管理</h3>
             <div className="flex gap-2">
               <button className="btn-primary" onClick={handleGenerateOutline} disabled={!!outline}>
                 {outline ? '已生成大纲' : '生成大纲'}
@@ -287,6 +380,19 @@ function ProjectWorkspace() {
             </div>
           </div>
 
+          {/* 大纲状态提示 */}
+          {outline && (
+            <div className="flex items-center gap-2 mb-4 p-3 rounded" style={{ background: outline.status === 'confirmed' ? 'var(--success-light, #d1fae5)' : 'var(--gray-100, #f3f4f6)' }}>
+              <span className={`status-badge ${outline.status === 'confirmed' ? 'bg-green' : 'bg-yellow'}`}>
+                {outline.status === 'confirmed' ? '已确认' : '草稿'}
+              </span>
+              <span className="text-sm">共 {outline.chapters.length} 章</span>
+              <span className="text-sm text-gray">
+                {outline.chapters.filter(c => c.status === 'completed').length} 已完成
+              </span>
+            </div>
+          )}
+
           {outline ? (
             <div className="chapter-list">
               {outline.chapters.map((ch, idx) => (
@@ -296,17 +402,70 @@ function ProjectWorkspace() {
                     <div className="chapter-title">{ch.title}</div>
                     {ch.target && <div className="text-gray text-sm">{ch.target}</div>}
                   </div>
-                  <span className={`chapter-status status-${ch.status === 'completed' ? 'completed' : ch.status === 'in_progress' ? 'in-progress' : 'todo'}`}>
-                    {ch.status === 'completed' ? '已完成' : ch.status === 'in_progress' ? '进行中' : '待开始'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`chapter-status status-${ch.status === 'completed' ? 'completed' : ch.status === 'in_progress' ? 'in-progress' : 'todo'}`}>
+                      {ch.status === 'completed' ? '已完成' : ch.status === 'in_progress' ? '进行中' : '待开始'}
+                    </span>
+                    <button
+                      className="btn-icon"
+                      onClick={() => handleDeleteChapter(ch.id)}
+                      title="删除章节"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="empty-state">
               <p>还没有大纲，点击"生成大纲"开始创建</p>
+              <p className="text-gray text-sm mt-2">选择模板快速生成章节大纲，或手动添加章节</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 模板选择弹窗 */}
+      {showTemplateModal && (
+        <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>选择大纲模板</h3>
+              <button className="btn-close" onClick={() => setShowTemplateModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="template-grid">
+                <div
+                  className={`template-card ${selectedTemplate === 'standard' ? 'selected' : ''}`}
+                  onClick={() => setSelectedTemplate('standard')}
+                >
+                  <h4>标准模板</h4>
+                  <p className="text-sm text-gray">项目背景 → 问题分析 → 解决方案 → 实施计划 → 总结与展望</p>
+                </div>
+                <div
+                  className={`template-card ${selectedTemplate === 'research' ? 'selected' : ''}`}
+                  onClick={() => setSelectedTemplate('research')}
+                >
+                  <h4>研究报告</h4>
+                  <p className="text-sm text-gray">摘要 → 引言 → 研究方法 → 结果 → 讨论 → 结论</p>
+                </div>
+                <div
+                  className={`template-card ${selectedTemplate === 'novel' ? 'selected' : ''}`}
+                  onClick={() => setSelectedTemplate('novel')}
+                >
+                  <h4>小说模板</h4>
+                  <p className="text-sm text-gray">楔子 → 起因 → 冲突 → 高潮 → 结局 → 尾声</p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowTemplateModal(false)}>取消</button>
+              <button className="btn-primary" onClick={() => handleConfirmGenerate(selectedTemplate)}>
+                生成大纲
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -388,13 +547,21 @@ function ProjectWorkspace() {
           )}
         </div>
       )}
+
+      {activeTab === 'check' && (
+        <CheckPage projectId={projectId || ''} />
+      )}
+
+      {activeTab === 'export' && (
+        <ExportPage projectId={projectId || ''} />
+      )}
     </div>
   );
 }
 
 // ============ 章节编辑器页面 ============
 
-function ChapterEditor() {
+function ChapterEditor({ addToast }: PageProps) {
   const { projectId, chapterId } = useParams<{ projectId: string; chapterId: string }>();
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [content, setContent] = useState('');
@@ -441,7 +608,7 @@ function ChapterEditor() {
       }
     } catch (error) {
       console.error('AI 生成失败:', error);
-      alert('AI 生成失败，请重试');
+      addToast?.('AI 生成失败，请重试', 'error');
     } finally {
       setAiLoading(false);
     }
@@ -450,7 +617,7 @@ function ChapterEditor() {
   const handleCreateSnapshot = async () => {
     if (!projectId || !chapterId) return;
     await snapshotApi.createChapter(projectId, chapterId);
-    alert('快照创建成功');
+    addToast?.('快照创建成功', 'success');
   };
 
   if (loading || !chapter) return <Loading />;
@@ -535,17 +702,406 @@ function ChapterEditor() {
   );
 }
 
+// ============ 设置页面 ============
+
+function SettingsPage({ addToast }: PageProps) {
+  const [config, setConfig] = useState<LLMConfig>({
+    provider: 'openai',
+    model: 'gpt-4o',
+    apiKey: '',
+    baseUrl: 'https://api.openai.com/v1',
+    temperature: 0.7,
+    maxTokens: 4000,
+  });
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const navigate = useNavigate();
+
+  const loadConfig = useCallback(async () => {
+    if (window.zide?.aiGetConfig) {
+      const result = await window.zide.aiGetConfig();
+      if (result?.success && result.data) {
+        setConfig(prev => ({ ...prev, ...result.data }));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (window.zide?.aiUpdateConfig) {
+        await window.zide.aiUpdateConfig(config);
+        addToast?.('设置已保存', 'success');
+      }
+    } catch (error) {
+      console.error('保存设置失败:', error);
+      addToast?.('保存设置失败，请重试', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      if (window.zide?.aiPing) {
+        const result = await window.zide.aiPing();
+        setTestResult({
+          success: result?.success || false,
+          message: result?.success ? '连接成功' : (result?.error || '连接失败'),
+        });
+      } else {
+        setTestResult({ success: true, message: '配置可用（模拟）' });
+      }
+    } catch (error) {
+      setTestResult({ success: false, message: '连接失败' });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="settings-page">
+      <div className="page-header">
+        <h1 className="page-title">设置</h1>
+        <button className="btn-secondary" onClick={() => navigate('/')}>返回首页</button>
+      </div>
+
+      <div className="card">
+        <h3 className="mb-4">LLM 配置</h3>
+
+        <div className="form-group">
+          <label className="form-label">模型提供商</label>
+          <select
+            value={config.provider}
+            onChange={e => {
+              const provider = e.target.value;
+              let baseUrl = config.baseUrl;
+              if (provider === 'openai') baseUrl = 'https://api.openai.com/v1';
+              else if (provider === 'anthropic') baseUrl = 'https://api.anthropic.com';
+              else if (provider === 'minimax') baseUrl = 'https://api.minimax.chat/v1';
+              else if (provider === 'kimi') baseUrl = 'https://api.moonshot.cn/v1';
+              setConfig({ ...config, provider, baseUrl });
+            }}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="minimax">MiniMax (海螺AI)</option>
+            <option value="kimi">Kimi (月之暗面)</option>
+            <option value="azure">Azure OpenAI</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">模型名称</label>
+          <input
+            type="text"
+            value={config.model}
+            onChange={e => setConfig({ ...config, model: e.target.value })}
+            placeholder="例如：gpt-4o, claude-3-opus"
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">API Key</label>
+          <input
+            type="password"
+            value={config.apiKey}
+            onChange={e => setConfig({ ...config, apiKey: e.target.value })}
+            placeholder="输入 API Key"
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">API 地址</label>
+          <input
+            type="text"
+            value={config.baseUrl}
+            onChange={e => setConfig({ ...config, baseUrl: e.target.value })}
+            placeholder="例如：https://api.openai.com/v1"
+          />
+          <p className="form-help">自定义模型或代理时需要修改</p>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Temperature</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="2"
+              value={config.temperature}
+              onChange={e => setConfig({ ...config, temperature: parseFloat(e.target.value) })}
+            />
+            <p className="form-help">控制随机性 (0-2)</p>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">最大 Token 数</label>
+            <input
+              type="number"
+              step="100"
+              min="100"
+              max="128000"
+              value={config.maxTokens}
+              onChange={e => setConfig({ ...config, maxTokens: parseInt(e.target.value) })}
+            />
+          </div>
+        </div>
+
+        {testResult && (
+          <div className={`test-result ${testResult.success ? 'success' : 'error'}`}>
+            {testResult.message}
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-4">
+          <button className="btn-secondary" onClick={handleTest} disabled={testing}>
+            {testing ? '测试中...' : '测试连接'}
+          </button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? '保存中...' : '保存设置'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card mt-4">
+        <h3 className="mb-4">关于</h3>
+        <p className="text-gray">Zide - AI 驱动的内容创作平台</p>
+        <p className="text-gray text-sm mt-2">版本 1.0.0</p>
+      </div>
+    </div>
+  );
+}
+
+// ============ 检查页面 ============
+
+function CheckPage({ projectId, addToast }: { projectId?: string; addToast?: (message: string, type: 'success' | 'error' | 'info') => void }) {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const pid = projectId || routeProjectId;
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [checkType, setCheckType] = useState<string>('all');
+  const navigate = useNavigate();
+
+  const runCheck = async () => {
+    if (!pid) return;
+    setLoading(true);
+    try {
+      const data = await checkApi.run(pid);
+      setResults(data?.issues || []);
+    } catch (error) {
+      console.error('检查失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResolve = async (issue: any) => {
+    if (!pid) return;
+    await checkApi.resolveIssue(pid, issue);
+    runCheck();
+  };
+
+  const handleIgnore = async (issue: any) => {
+    if (!pid) return;
+    await checkApi.ignoreIssue(pid, issue);
+    runCheck();
+  };
+
+  const getIssueTypeLabel = (type: string) => {
+    const map: Record<string, string> = {
+      missing_chapter: '缺章',
+      term_conflict: '术语冲突',
+      duplicate_content: '重复内容',
+      low_completion: '完成度低',
+      outline_drift: '大纲偏离',
+    };
+    return map[type] || type;
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <h3 className="mb-4">检查结果</h3>
+        {results.length === 0 ? (
+          <div className="empty-state">
+            <p>点击"运行检查"开始全面检查</p>
+          </div>
+        ) : (
+          <div className="issue-list">
+            {results.map((issue, idx) => (
+              <div key={idx} className="issue-item">
+                <div className="issue-info">
+                  <span className={`issue-type type-${issue.type}`}>
+                    {getIssueTypeLabel(issue.type)}
+                  </span>
+                  <span className="issue-message">{issue.message}</span>
+                  {issue.chapterId && (
+                    <span className="text-gray text-sm ml-2">章节: {issue.chapterTitle || issue.chapterId}</span>
+                  )}
+                </div>
+                <div className="issue-actions">
+                  {issue.suggestion && (
+                    <button className="btn-primary btn-sm" onClick={() => handleResolve(issue)}>
+                      修复
+                    </button>
+                  )}
+                  <button className="btn-secondary btn-sm" onClick={() => handleIgnore(issue)}>
+                    忽略
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============ 导出页面 ============
+
+function ExportPage({ projectId, addToast }: { projectId?: string; addToast?: (message: string, type: 'success' | 'error' | 'info') => void }) {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const pid = projectId || routeProjectId;
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [preview, setPreview] = useState('');
+  const [format, setFormat] = useState<'markdown' | 'html' | 'pdf'>('markdown');
+
+  const loadHistory = async () => {
+    if (!pid) return;
+    const data = await exportApi.history(pid);
+    setHistory(data);
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, [pid]);
+
+  const handleExport = async () => {
+    if (!pid) return;
+    setExporting(true);
+    try {
+      const result = await exportApi.export(pid, format);
+      if (result) {
+        addToast?.(`导出成功！文件保存于: ${result.filePath}`, 'success');
+        loadHistory();
+      }
+    } catch (error) {
+      console.error('导出失败:', error);
+      addToast?.('导出失败，请重试', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!pid) return;
+    setLoading(true);
+    try {
+      const content = await exportApi.preview(pid, format);
+      setPreview(content);
+    } catch (error) {
+      console.error('预览失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenDir = async () => {
+    await exportApi.openDir();
+  };
+
+  return (
+    <div>
+      <div className="grid-2">
+        <div className="card">
+          <h3 className="mb-4">导出项目</h3>
+          <div className="form-group">
+            <label className="form-label">导出格式</label>
+            <select value={format} onChange={e => setFormat(e.target.value as any)}>
+              <option value="markdown">Markdown (.md)</option>
+              <option value="html">HTML (.html)</option>
+              <option value="pdf">PDF (.pdf)</option>
+            </select>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button className="btn-primary" onClick={handleExport} disabled={exporting}>
+              {exporting ? '导出中...' : '导出项目'}
+            </button>
+            <button className="btn-secondary" onClick={handlePreview} disabled={loading}>
+              {loading ? '加载中...' : '预览'}
+            </button>
+            <button className="btn-secondary" onClick={handleOpenDir}>打开目录</button>
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 className="mb-4">导出历史</h3>
+          {history.length === 0 ? (
+            <div className="empty-state">
+              <p>暂无导出记录</p>
+            </div>
+          ) : (
+            <div className="history-list">
+              {history.map((item, idx) => (
+                <div key={idx} className="history-item">
+                  <div>
+                    <span className="font-medium">{item.format?.toUpperCase()}</span>
+                    <span className="text-gray text-sm ml-2">
+                      {new Date(item.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {preview && (
+        <div className="card mt-4">
+          <h3 className="mb-4">预览</h3>
+          <div className="preview-content" style={{ maxHeight: '400px', overflow: 'auto' }}>
+            <pre style={{ whiteSpace: 'pre-wrap', fontSize: '12px' }}>{preview.slice(0, 2000)}</pre>
+            {preview.length > 2000 && <p className="text-gray">... (更多内容)</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ 主应用组件 ============
 
 function App() {
+  const { toasts, addToast, removeToast } = useToast();
+
   return (
-    <HashRouter>
-      <Routes>
-        <Route path="/" element={<ProjectList />} />
-        <Route path="/project/:projectId" element={<ProjectWorkspace />} />
-        <Route path="/project/:projectId/chapter/:chapterId" element={<ChapterEditor />} />
-      </Routes>
-    </HashRouter>
+    <div className="app">
+      <HashRouter>
+        <Routes>
+          <Route path="/" element={<ProjectList addToast={addToast} />} />
+          <Route path="/settings" element={<SettingsPage addToast={addToast} />} />
+          <Route path="/project/:projectId" element={<ProjectWorkspace addToast={addToast} />} />
+          <Route path="/project/:projectId/chapter/:chapterId" element={<ChapterEditor addToast={addToast} />} />
+          <Route path="/project/:projectId/check" element={<CheckPage addToast={addToast} />} />
+          <Route path="/project/:projectId/export" element={<ExportPage addToast={addToast} />} />
+        </Routes>
+      </HashRouter>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </div>
   );
 }
 

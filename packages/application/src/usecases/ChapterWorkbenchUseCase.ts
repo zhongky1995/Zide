@@ -13,7 +13,7 @@ export class ChapterWorkbenchUseCase {
 
   // 获取章节
   async getChapter(projectId: string, chapterId: string): Promise<Chapter | null> {
-    return (this.chapterRepo as any).findByChapterId?.(projectId, chapterId) || null;
+    return this.chapterRepo.findByChapterId(projectId, chapterId);
   }
 
   // 获取项目所有章节
@@ -23,7 +23,7 @@ export class ChapterWorkbenchUseCase {
 
   // 更新章节内容
   async updateContent(projectId: string, chapterId: string, content: string): Promise<Chapter> {
-    const chapter = await (this.chapterRepo as any).findByChapterId(projectId, chapterId);
+    const chapter = await this.chapterRepo.findByChapterId(projectId, chapterId);
     if (!chapter) {
       throw new ChapterNotFoundError(chapterId);
     }
@@ -31,7 +31,7 @@ export class ChapterWorkbenchUseCase {
     // 自动计算完成度
     const completion = this.calculateCompletion(content);
 
-    return (this.chapterRepo as any).updateByProjectId(projectId, chapterId, {
+    return this.chapterRepo.updateByProjectId(projectId, chapterId, {
       content,
       completion,
     });
@@ -39,7 +39,7 @@ export class ChapterWorkbenchUseCase {
 
   // 更新章节状态
   async updateStatus(projectId: string, chapterId: string, status: ChapterStatus): Promise<Chapter> {
-    return (this.chapterRepo as any).updateByProjectId(projectId, chapterId, { status });
+    return this.chapterRepo.updateByProjectId(projectId, chapterId, { status });
   }
 
   // 更新章节元信息
@@ -48,17 +48,17 @@ export class ChapterWorkbenchUseCase {
     chapterId: string,
     params: { title?: string; target?: string }
   ): Promise<Chapter> {
-    return (this.chapterRepo as any).updateByProjectId(projectId, chapterId, params);
+    return this.chapterRepo.updateByProjectId(projectId, chapterId, params);
   }
 
   // 更新摘要
   async updateSummary(projectId: string, chapterId: string, summary: ChapterSummary): Promise<Chapter> {
-    return (this.chapterRepo as any).updateSummary(projectId, chapterId, summary);
+    return this.chapterRepo.updateSummary(projectId, chapterId, summary);
   }
 
   // 手动更新完成度
   async updateCompletion(projectId: string, chapterId: string, completion: number): Promise<Chapter> {
-    return (this.chapterRepo as any).updateCompletion(projectId, chapterId, completion);
+    return this.chapterRepo.updateCompletion(projectId, chapterId, completion);
   }
 
   // 获取下一章节编号

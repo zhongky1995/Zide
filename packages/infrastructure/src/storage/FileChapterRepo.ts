@@ -83,22 +83,8 @@ export class FileChapterRepo implements ChapterRepoPort {
       const content = await fs.readFile(chapterPath, 'utf-8');
       return this.parseChapterFile(content, projectId, chapterId);
     } catch {
-      // 如果章节不存在，自动创建一个新章节
-      const chapter: Chapter = {
-        id: chapterId,
-        projectId,
-        number: chapterId.replace('ch-', '').split('-')[0] || '01',
-        title: `第 ${chapterId.replace('ch-', '').split('-')[0] || '1'} 章`,
-        status: ChapterStatus.TODO,
-        wordCount: 0,
-        completion: 0,
-        content: '',
-        operationCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await this.save(chapter);
-      return chapter;
+      // 章节不存在，返回 null
+      return null;
     }
   }
 

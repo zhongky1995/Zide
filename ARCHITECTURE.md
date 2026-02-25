@@ -1,207 +1,726 @@
-# ARCHITECTURE｜长文 AI 生产系统（MVP 架构方案）
+# Zide 系统架构文档
 
-版本：v1.0（评审版）  
-日期：2026-02-24  
-状态：Proposed（待确认后冻结）
-
----
-
-## 1. 目标复述（Planner）
-
-在严格遵守 `PRD.md` 的前提下，建设一个单用户、本地优先的长文 AI 生产系统 MVP，打通「创建 -> 章节推进 -> 整体检查 -> 导出」闭环，并确保全过程可追溯、可回滚、可测试。
-
-### 1.1 本次范围（MVP / P0）
-
-1. 项目创建向导与项目底座配置。
-2. 大纲生成与编辑。
-3. 章节工作台（编辑、状态、AI 意图操作）。
-4. 上下文引擎（索引、检索、打包）。
-5. 章节摘要与完成度更新。
-6. 整体检查（缺章、术语冲突、重复、逻辑冲突）。
-7. 快照与回滚（章节/全局）。
-8. 导出中心（PDF / Markdown / HTML）。
-
-### 1.2 非目标范围（本期不做）
-
-1. 多人实时协同。
-2. 复杂审批流与评论系统。
-3. 插件市场与开放生态。
-4. 专业出版级排版引擎。
-
-### 1.3 架构硬约束
-
-1. 单机本地优先，运行期数据落盘可读。
-2. 任意 AI 写入可追溯到章节与轮次。
-3. 任意 AI 写入可在 3 步内回滚。
-4. 支撑 >= 10 万字项目的分段生成与管理。
-5. 禁止跨层直连，必须走契约（port/interface）。
+版本：v1.2
+日期：2026-02-25
+状态：Active
 
 ---
 
-## 2. 需求评审结论
+## 1. 系统概述
 
-### 2.1 已确认且可直接落地的需求
+### 1.1 项目定位
 
-1. 业务主链路明确，且流程边界清晰（创建 -> 生成 -> 检查 -> 导出）。
-2. 核心对象稳定（Project / Chapter / Snapshot / Glossary / CheckIssue / ExportJob）。
-3. 可观测性要求明确（生成、检查、导出均需日志与进度反馈）。
-4. 风险优先级明确（先稳定性、回滚、检查能力，再扩展协同/插件）。
+**Zide** 是一个长文 AI 生产系统，目标是把"长文写作"变成"可回滚、可检查、可交付的项目化生产流程"。
 
-### 2.2 不确定点与选型对比
+### 1.2 核心价值
 
-#### 不确定点 A：客户端技术形态
+- **可回滚**：任意 AI 生成操作可在 3 步内回滚
+- **可检查**：整体检查确保内容一致性（缺章、术语冲突、重复检测）
+- **可交付**：支持 MD/HTML/PDF 多格式导出
+- **可追溯**：所有 AI 生成操作记录操作历史，采纳率可统计
+- **可配置**：灵活的 AI 提供商和参数配置
+- **可备份**：项目数据自动/手动备份，支持恢复
 
-| 方案 | 收益 | 成本 | 风险 | 适用性 |
-| --- | --- | --- | --- | --- |
-| Electron + React + TypeScript | 生态成熟，Node 能力齐全，导出/文件访问方案多 | 包体较大 | 主进程安全边界需要严格控制 | **MVP 推荐** |
-| Tauri + React + TypeScript | 体积小、资源占用低 | 需要 Rust 侧能力，团队门槛更高 | 跨栈调试成本高 | 适合后续性能优化阶段 |
-| 浏览器前端 + 本地服务 | 前后端边界清晰 | 部署与进程管理复杂 | 本地权限、安装体验差 | 不适合当前单机 MVP |
+### 1.3 技术栈
 
-#### 不确定点 B：内容存储策略
-
-| 方案 | 收益 | 成本 | 风险 | 适用性 |
-| --- | --- | --- | --- | --- |
-| 纯 Markdown 文件存储 | 可读性高、便于手工修复 | 检索/统计性能有限 | 一致性检查实现复杂 | 仅适合极小规模 |
-| Markdown 为主 + SQLite 索引与任务元数据 | 兼顾可读性与查询性能 | 需要双写一致性设计 | 索引失步需修复机制 | **MVP 推荐** |
-| 纯数据库存储 | 查询性能好 | 可读性差，迁移成本高 | 用户无法直接恢复原文 | 不符合“项目化可交付”定位 |
-
-#### 不确定点 C：一致性检查策略
-
-| 方案 | 收益 | 成本 | 风险 | 适用性 |
-| --- | --- | --- | --- | --- |
-| 全规则引擎 | 结果可解释、稳定 | 覆盖复杂语义能力有限 | 漏检语义冲突 | 适合底线兜底 |
-| 全 LLM 判断 | 语义能力强 | 成本高、波动大 | 误报/漏报不可控 | 不适合作为门槛条件 |
-| 规则优先 + LLM 辅助复核 | 可解释且兼顾语义 | 实现复杂度中等 | 需要明确冲突仲裁策略 | **MVP 推荐** |
-
-### 2.3 推荐方案（结论）
-
-1. 客户端：Electron + React + TypeScript。
-2. 存储：Markdown 为事实源（source of truth），SQLite 承载索引与任务元数据。
-3. 检查：规则优先，LLM 仅作补充检测与建议，不直接覆盖硬性门禁结果。
-4. 架构方法：分层 + 端口适配（Hexagonal-lite），先保边界清晰，再做性能优化。
+| 层级 | 技术选型 |
+|------|----------|
+| 桌面框架 | Electron |
+| 前端框架 | React + TypeScript |
+| 构建工具 | Monorepo (npm workspaces) |
+| 存储策略 | Markdown 文件存储 + JSON 索引 |
+| AI 接入 | OpenAI / Anthropic Claude / MiniMax / Kimi |
 
 ---
 
-## 3. 技术方案（目录边界与结构）
+## 2. 整体架构
 
-### 3.1 源码目录结构树（建议）
+### 2.1 分层架构
 
-```text
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Electron Main Process                     │
+│              (IPC 处理器、窗口管理、菜单、系统集成)           │
+├─────────────────────────────────────────────────────────────┤
+│                       Preload Bridge                         │
+│                    (安全 API 白名单暴露)                      │
+├─────────────────────────────────────────────────────────────┤
+│                       React UI Layer                         │
+│              (项目管理、章节工作台、检查中心)                 │
+├─────────────────────────────────────────────────────────────┤
+│                     Application Layer                         │
+│          (用例：CreateProject, Outline, ChapterWorkbench,    │
+│           GenerateContent, Context, Check, Export, Metrics) │
+├─────────────────────────────────────────────────────────────┤
+│                       Domain Layer                           │
+│    (实体：Project, Chapter, Outline, Snapshot, Glossary,    │
+│     CheckIssue, ExportJob, OperationLog + 领域服务)         │
+├─────────────────────────────────────────────────────────────┤
+│                     Infrastructure Layer                     │
+│  (FileProjectRepo, FileChapterRepo, SimpleIndex,            │
+│   RealLLMAdapter, SimpleRuleEngine, FileExportAdapter)     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 模块依赖规则
+
+1. **单向依赖**：renderer -> application -> domain + ports -> infrastructure
+2. **禁止跨层**：domain 层不允许 import infrastructure 层实现类
+3. **端口隔离**：application 层通过 port 接口依赖 infrastructure
+4. **文件隔离**：renderer 不允许直接读写 runtime/projects 文件
+
+---
+
+## 3. 目录结构
+
+### 3.1 源码目录
+
+```
 Zide/
-  PRD.md
-  ARCHITECTURE.md
-  TODO.md
-  docs/
-    adr/                              # 架构决策记录（可追溯）
-    contracts/                        # 输入输出契约定义（DTO/Schema）
-  apps/
-    desktop/
-      src/
-        main/                         # Electron 主进程（窗口、菜单、任务调度）
-        preload/                      # 安全桥接层（白名单 API）
-        renderer/                     # UI 与页面状态管理
-  packages/
-    domain/
-      src/entities/                   # 领域实体（Project/Chapter/Snapshot...）
-      src/services/                   # 纯业务规则（不含 IO）
-      src/errors/                     # 领域错误定义
-    application/
-      src/usecases/                   # 用例编排（创建/续写/检查/导出）
-      src/ports/                      # 对外依赖抽象（LLM/存储/导出/索引）
-    infrastructure/
-      src/storage/                    # 文件系统 + SQLite 适配
-      src/index/                      # 切片与检索实现
-      src/llm/                        # 模型调用适配器
-      src/export/                     # MD/HTML/PDF 导出适配器
-    shared/
-      src/types/                      # 跨层类型定义
-      src/logger/                     # 结构化日志
-      src/utils/                      # 无业务语义工具函数
-  tests/
-    unit/                             # 纯业务单测
-    integration/                      # 端口契约与模块集成测试
-    e2e/                              # 关键流程端到端测试
-  runtime/
-    projects/                         # 用户项目运行数据（非源码）
+├── apps/desktop/               # Electron 主应用
+│   ├── src/main/              # 主进程（IPC 处理器）
+│   ├── src/preload/           # 安全桥接层
+│   └── src/renderer/          # React UI
+├── packages/
+│   ├── domain/                # 领域实体与服务
+│   │   └── src/
+│   │       ├── entities/     # Project, Chapter, Outline, Snapshot, Settings, Backup
+│   │       ├── services/    # ProjectService
+│   │       ├── errors/       # DomainError
+│   │       └── ports/        # MetricsPort
+│   ├── application/           # 用例与端口
+│   │   └── src/
+│   │       ├── usecases/     # 11 大用例
+│   │       └── ports/        # LLMPort, IndexPort, ExportPort, SettingsPort, BackupPort
+│   ├── infrastructure/        # 适配器实现
+│   │   └── src/
+│   │       ├── storage/      # FileProjectRepo, FileChapterRepo, FileSettingsRepo, FileBackupRepo
+│   │       ├── llm/          # MockLLMAdapter, RealLLMAdapter
+│   │       ├── index/        # SimpleIndex
+│   │       ├── check/        # SimpleRuleEngine
+│   │       ├── export/       # FileExportAdapter
+│   │       ├── metrics/      # FileMetricsAdapter
+│   │       ├── cache/        # MemoryCache, DiskCache
+│   │       └── backup/       # ZipBackupAdapter
+│   └── shared/                # 跨层类型/工具
+├── runtime/                    # 用户项目数据
+│   ├── projects/             # 项目数据
+│   ├── backups/              # 备份文件
+│   └── config/               # 应用配置
+└── tests/                     # 测试目录
 ```
 
-### 3.2 运行期项目目录结构（对用户可见）
+### 3.2 运行期项目结构
 
-```text
-runtime/projects/{project_id}/
-  meta/
-    project.md                        # 项目基础信息
-    constraints.md                    # 目标/限制/风格约束
-    glossary.md                       # 术语表
-  outline/
-    outline.md                        # 章节骨架与章节目标
-  chapters/
-    01-intro.md
-    02-problem.md
-    ...
-  snapshots/
-    chapter/                          # 章节快照
-    global/                           # 全局快照
-  artifacts/
-    references/                       # 附件与参考资料
-  output/
-    final.md
-    final.html
-    final.pdf
-  logs/
-    operations.log                    # 操作事件日志（可追溯）
+```
+runtime/
+├── projects/{project_id}/
+│   ├── meta/
+│   │   ├── project.json           # 项目元数据
+│   │   └── glossary.json          # 术语表
+│   ├── outline/
+│   │   └── outline.json           # 大纲数据
+│   ├── chapters/
+│   │   ├── {chapter_id}.md       # 章节内容
+│   │   └── ...
+│   ├── snapshots/
+│   │   ├── chapter/              # 章节快照
+│   │   └── global/               # 全局快照
+│   ├── output/
+│   │   ├── final.md
+│   │   ├── final.html
+│   │   └── final.pdf
+│   ├── .index.json               # 章节索引
+│   └── metrics.json              # 操作统计
+├── backups/                       # 备份存储
+│   ├── {project_id}/
+│   │   ├── {timestamp}.zip       # 备份归档
+│   │   └── manifest.json         # 备份清单
+│   └── ...
+├── config/
+│   ├── settings.json              # 应用设置
+│   ├── llm-providers.json        # LLM 提供商配置
+│   └── window-state.json         # 窗口状态
+└── logs/                         # 日志文件
+    └── app.log
 ```
 
 ---
 
-## 4. 职责定义文档
+## 4. 核心模块
 
-### 4.1 模块职责与输入输出
+### 4.1 项目管理
 
-| 模块 | 目录 | 输入 | 输出 | 依赖 | 禁止项 |
-| --- | --- | --- | --- | --- | --- |
-| 项目初始化 | `packages/application/src/usecases/project-init` | 项目类型、读者、规模、底座信息 | 项目目录与初始元数据 | `ProjectRepoPort` | 禁止直接操作 UI 状态 |
-| 结构规划 | `.../outline` | 底座信息、模板、人工编辑指令 | `outline.md` 与章节目标 | `LLMPort`、`OutlineRepoPort` | 禁止跨层调用基础设施实现类 |
-| 章节工作台 | `.../chapter-workbench` | 章节内容、AI 意图、手工编辑 | 新版章节正文、摘要、完成度 | `ContextPort`、`LLMPort`、`ChapterRepoPort` | 禁止绕过快照流程直接覆盖 |
-| 上下文引擎 | `packages/infrastructure/src/index` + `application/usecases/context` | 当前章节、相关章节、术语、限制 | 上下文包（有来源记录） | `IndexPort` | 禁止无来源上下文注入 |
-| 质量校验 | `.../quality-check` | 全量章节、术语表、章节目标 | 问题清单 `CheckIssue[]` | `RuleEnginePort`、`LLMReviewPort` | 禁止“仅 LLM 结论即阻断导出” |
-| 版本控制 | `.../snapshot` | 章节版本、全局状态 | 快照记录、回滚结果 | `SnapshotRepoPort` | 禁止跨模块修改快照内容 |
-| 导出模块 | `.../export` | 章节合并内容、目录、模板参数 | `final.md/html/pdf`、任务日志 | `ExportPort` | 禁止直接读取未通过门槛的数据 |
+**功能**：创建、编辑、删除项目，元数据管理
 
-### 4.2 核心调用关系（硬规则）
+**核心实体**：
+- `Project` - 项目基本信息（id, name, type, status, meta）
+- `ProjectType` - 项目类型（proposal, report, research, novel, other）
+- `ProjectStatus` - 项目状态（draft, in_progress, review, completed, archived）
 
-1. `renderer -> application(usecases) -> domain + ports -> infrastructure(adapter)` 单向依赖。
-2. `domain` 层不允许 import `infrastructure`。
-3. `renderer` 不允许直接读写 `runtime/projects` 文件。
-4. 任何 AI 生成操作必须先走 `context-pack`，再调用 `LLMPort`。
-5. 任何会修改正文的操作必须先建快照，再写入章节文件。
+**用例**：`CreateProjectUseCase`
 
-### 4.3 变更影响与回归检查点
+### 4.2 大纲管理
 
-| 变更类型 | 影响范围 | 必做回归 |
-| --- | --- | --- |
-| 章节数据结构变更 | 上下文引擎、检查模块、导出模块 | 10 轮续写稳定性测试 + 导出三格式一致性 |
-| 检索排序策略变更 | AI 生成质量与跑题率 | 连续续写跑题率、采纳率、回滚次数对比 |
-| 快照格式变更 | 回滚与差异比较 | 任意章节 3 步回滚演练 |
-| 导出模板变更 | 交付文件格式和成功率 | PDF/MD/HTML 成功率与样式验收 |
-| 模型供应商切换 | 生成质量与成本 | 关键场景回放测试 + 异常重试路径 |
+**功能**：生成、编辑章节大纲
+
+**核心实体**：
+- `Outline` - 大纲结构（projectId, chapters, status）
+- `OutlineChapter` - 章节大纲（id, title, target, status）
+
+**用例**：`OutlineUseCases`
+
+**流程**：
+1. 收集项目背景、目标、术语
+2. 调用 LLM 生成大纲
+3. 用户确认/编辑大纲
+4. 更新大纲状态
+
+### 4.3 章节工作台
+
+**功能**：Markdown 编辑，状态流转
+
+**核心实体**：
+- `Chapter` - 章节（id, title, content, status, summary, target）
+- `ChapterStatus` - 状态（todo, in_progress, review, completed）
+- `AIOperation` - AI 操作记录（id, intent, input, output, adopted）
+
+**用例**：`ChapterWorkbenchUseCase`
+
+**状态流转**：
+```
+TODO -> IN_PROGRESS -> REVIEW -> COMPLETED
+  ^         |            |
+  └─────────┴────────────┘ (可回退)
+```
+
+### 4.4 AI 内容生成
+
+**功能**：6 种 AI 意图，支持上下文感知的续写/扩写
+
+**核心实体**：
+- `ChapterIntent` - 意图类型
+  - `CONTINUE` - 续写
+  - `EXPAND` - 扩写
+  - `REWRITE` - 重写
+  - `ADD_ARGUMENT` - 补论证
+  - `POLISH` - 润色
+  - `SIMPLIFY` - 简化
+
+**用例**：`GenerateContentUseCase`
+
+**核心流程**：
+```typescript
+// 1. 获取章节信息
+const chapter = await chapterRepo.findByChapterId(projectId, chapterId);
+
+// 2. 打包上下文
+const contextPack = await indexPort.packContext(projectId, chapterId);
+
+// 3. 调用 LLM 生成
+const result = await llmPort.generate({
+  context: { projectContext, relatedChapters, glossary, outline },
+  chapter: { id, title, content, target },
+  intent,
+  customPrompt
+});
+
+// 4. 保存操作记录
+await chapterRepo.saveOperation(projectId, chapterId, operation);
+
+// 5. 更新章节内容
+await chapterRepo.updateContent(projectId, chapterId, newContent);
+
+// 6. 更新索引
+await indexPort.indexChapter(projectId, chapterId, newContent);
+```
+
+### 4.5 上下文引擎
+
+**功能**：索引、检索、打包上下文
+
+**核心组件**：`SimpleIndex`
+
+**索引配置**：
+- `chunkSize` - 切片大小（默认 2000 字符）
+- `chunkOverlap` - 切片重叠（默认 200 字符）
+
+**核心方法**：
+- `indexChapter()` - 索引章节内容
+- `retrieve()` - 检索相关上下文
+- `packContext()` - 打包完整上下文包
+
+**上下文包结构**：
+```typescript
+interface ContextPack {
+  projectContext: string;      // 项目背景
+  relatedChapters: Chapter[];   // 相关章节
+  glossary: string;            // 术语表
+  outline: string;            // 大纲
+  sources: IndexEntry[];      // 来源记录
+}
+```
+
+### 4.6 快照与回滚
+
+**功能**：章节/全局快照，版本回滚
+
+**核心实体**：
+- `Snapshot` - 快照（id, type, chapterId, content, createdAt）
+
+**用例**：`SnapshotUseCases`
+
+**快照类型**：
+- `chapter` - 章节快照
+- `global` - 全局快照（整个项目）
+
+### 4.7 整体检查
+
+**功能**：缺章检测、术语冲突、重复检测
+
+**核心实体**：
+- `CheckIssue` - 检查问题（id, type, severity, message, chapters）
+
+**用例**：`CheckUseCases`
+
+**检查规则**（`SimpleRuleEngine`）：
+- 缺章检测 - 对照大纲检查章节完整性
+- 术语冲突 - 检测术语定义不一致
+- 内容重复 - 检测章节间重复内容
+
+### 4.8 导出中心
+
+**功能**：MD/HTML/PDF 多格式导出
+
+**核心实体**：
+- `ExportJob` - 导出任务（id, format, status, filePath, createdAt）
+- `ExportFormat` - 格式（md, html, pdf）
+- `ExportConfig` - 导出配置
+
+**用例**：`ExportUseCases`
+
+**导出流程**：
+1. 检查项目完整性
+2. 合并章节内容
+3. 应用模板转换
+4. 输出目标格式
+
+### 4.9 统计观测
+
+**功能**：操作日志、采纳率统计
+
+**核心实体**：
+- `OperationLog` - 操作日志（id, type, details, timestamp）
+
+**用例**：`MetricsUseCases`
+
+**统计指标**：
+- AI 操作次数
+- 采纳率（adopted/total）
+- 各意图使用分布
+
+### 4.10 设置中心
+
+**功能**：AI 提供商配置、模型参数、应用偏好
+
+**核心实体**：
+- `Settings` - 设置（id, category, key, value）
+- `LLMProviderConfig` - LLM 配置（provider, model, apiKey, baseUrl, maxTokens, temperature）
+- `AppPreferences` - 应用偏好（theme, language, autoSave, autoBackup）
+
+**用例**：`SettingsUseCases`
+
+**配置分类**：
+- **LLM 设置**：提供商选择、模型参数、API 密钥管理
+- **编辑器设置**：主题、字体大小、自动保存间隔
+- **导出设置**：默认格式、模板选择
+- **备份设置**：自动备份开关、备份路径、保留策略
+
+**数据流**：
+```
+User edits settings
+    │
+    ▼
+SettingsUseCase.updateSettings(key, value)
+    │
+    ├─► SettingsRepo.save()
+    │
+    ├─► Notify renderer (settings-changed event)
+    │
+    ├─► If LLM config changed: reinitialize LLM adapter
+    │
+    └─► Persist to config.json
+```
+
+### 4.11 备份中心
+
+**功能**：项目数据备份、恢复、迁移
+
+**核心实体**：
+- `Backup` - 备份记录（id, projectId, type, filePath, size, createdAt, checksum）
+- `BackupType` - 备份类型（manual, auto, scheduled）
+- `BackupConfig` - 备份配置（enabled, interval, retention, path）
+
+**用例**：`BackupUseCases`
+
+**备份策略**：
+- **手动备份**：用户主动触发全量备份
+- **自动备份**：AI 生成操作后自动创建增量快照
+- **定时备份**：按配置的间隔定期备份
+
+**核心流程**：
+```
+Backup trigger (manual/auto/scheduled)
+    │
+    ▼
+BackupUseCases.createBackup(projectId, type)
+    │
+    ├─► Collect project files
+    │    ├─► meta/
+    │    ├─► outline/
+    │    ├─► chapters/
+    │    └─► snapshots/
+    │
+    ├─► Create archive (zip)
+    ├─► Calculate checksum (SHA256)
+    │
+    ├─► SettingsRepo.saveBackupRecord()
+    │
+    └─► Store to backup path
+
+Recovery:
+    │
+    ▼
+BackupUseCases.restoreBackup(backupId)
+    │
+    ├─► Validate checksum
+    ├─► Extract archive
+    ├─► Merge/replace project files
+    │
+    └─► Update project status
+```
+
+**保留策略**：
+- 自动清理超过保留期的备份
+- 保留最近 N 个手动备份
+- 支持导出备份到外部存储
 
 ---
 
-## 5. 非功能设计（MVP 最小集）
+## 5. LLM 支持
 
-1. 可观测性：所有生成/检查/导出任务记录 `operationId`、耗时、输入摘要、错误码。
-2. 错误恢复：导出失败必须保留中间产物和失败章节列表，支持增量重试。
-3. 性能基线：10 万字项目执行检查与导出时，UI 不阻塞，任务可中断/可继续。
-4. 安全边界：仅 preload 暴露白名单 API；文件系统访问仅限 `runtime/projects`。
+### 5.1 支持的 Provider
+
+| Provider | Model | API Endpoint |
+|----------|-------|--------------|
+| OpenAI | gpt-4, gpt-4o | https://api.openai.com/v1 |
+| Anthropic Claude | claude-3-opus | https://api.anthropic.com/v1 |
+| MiniMax | - | https://api.minimax.chat/v1 |
+| Kimi | - | https://api.moonshot.cn/v1 |
+
+### 5.2 配置接口
+
+```typescript
+interface LLMProviderConfig {
+  provider: 'openai' | 'anthropic' | 'minimax' | 'kimi';
+  model: string;
+  apiKey?: string;
+  baseUrl?: string;
+  maxTokens: number;
+  temperature: number;
+}
+```
+
+### 5.3 Prompt 策略
+
+每种意图对应不同的系统提示词：
+
+| Intent | System Prompt |
+|--------|---------------|
+| CONTINUE | 续写内容，保持风格一致性 |
+| EXPAND | 扩展内容，增加细节、案例 |
+| REWRITE | 重新组织，使内容清晰有力 |
+| ADD_ARGUMENT | 补充论证、数据、证据 |
+| POLISH | 润色，使内容流畅专业 |
+| SIMPLIFY | 简化，去除冗余，保留核心 |
 
 ---
 
-## 6. 确认门禁（必须）
+## 6. 端口接口定义
 
-当前文档只定义架构与执行边界，不包含业务实现。  
-进入编码前需确认两点：
+### 6.1 Repository Ports
 
-1. 是否接受推荐技术栈（Electron + React + TypeScript + SQLite）。
-2. 是否按 `TODO.md` 的 Step 顺序单线程推进（每次只做一个 Step）。
+```typescript
+interface ProjectRepoPort {
+  create(params: CreateProjectParams): Promise<Project>;
+  findById(id: string): Promise<Project | null>;
+  findAll(): Promise<Project[]>;
+  update(id: string, params: UpdateProjectParams): Promise<Project>;
+  delete(id: string): Promise<void>;
+}
 
+interface ChapterRepoPort {
+  create(projectId: string, params: CreateChapterParams): Promise<Chapter>;
+  findByChapterId(projectId: string, chapterId: string): Promise<Chapter | null>;
+  findByProjectId(projectId: string): Promise<Chapter[]>;
+  updateContent(projectId: string, chapterId: string, content: string): Promise<void>;
+  delete(projectId: string, chapterId: string): Promise<void>;
+}
+```
+
+### 6.2 Service Ports
+
+```typescript
+interface LLMPort {
+  generate(params: LLMGenerateParams): Promise<LLMGenerateResult>;
+  ping(): Promise<boolean>;
+  getConfig(): LLMProviderConfig;
+}
+
+interface IndexPort {
+  indexChapter(projectId: string, chapterId: string, content: string, title: string): Promise<void>;
+  retrieve(projectId: string, chapterId: string, query: string, limit?: number): Promise<IndexEntry[]>;
+  packContext(projectId: string, chapterId: string): Promise<ContextPack>;
+}
+
+interface ExportPort {
+  export(projectId: string, format: ExportFormat, config?: ExportConfig): Promise<ExportResult>;
+  preview(projectId: string, format: ExportFormat): Promise<string>;
+  getExportHistory(projectId: string): Promise<{ recent: ExportResult[]; total: number }>;
+}
+
+interface SettingsPort {
+  getSettings(): Promise<Settings>;
+  updateSettings(key: string, value: any): Promise<void>;
+  getLLMConfig(): Promise<LLMProviderConfig>;
+  updateLLMConfig(config: LLMProviderConfig): Promise<void>;
+  resetToDefaults(): Promise<void>;
+}
+
+interface BackupPort {
+  createBackup(projectId: string, type: BackupType): Promise<Backup>;
+  listBackups(projectId: string): Promise<Backup[]>;
+  restoreBackup(backupId: string): Promise<void>;
+  deleteBackup(backupId: string): Promise<void>;
+  exportBackup(backupId: string, targetPath: string): Promise<void>;
+  getBackupConfig(): Promise<BackupConfig>;
+  updateBackupConfig(config: BackupConfig): Promise<void>;
+}
+```
+
+---
+
+## 7. 数据流
+
+### 7.1 AI 生成流程
+
+```
+User Action
+    │
+    ▼
+ChapterWorkbenchUseCase.generate(intent)
+    │
+    ├─► ChapterRepo.findByChapterId()
+    │         │
+    │         ▼
+    │    IndexPort.packContext()
+    │         │
+    │         ▼
+    │    SimpleIndex.retrieve() / SimpleIndexAdapter.packContext()
+    │         │
+    │         ▼
+    │    ContextPack (项目背景 + 相关章节 + 术语 + 大纲)
+    │
+    ▼
+LLMPort.generate(context, chapter, intent)
+    │
+    ▼
+RealLLMAdapter.callXXX() / MockLLMAdapter
+    │
+    ▼
+AIOperation (记录输入输出)
+    │
+    ├─► ChapterRepo.saveOperation()
+    ├─► ChapterRepo.updateContent()
+    ├─► IndexPort.indexChapter()
+    │
+    ▼
+Updated Chapter + Operation
+```
+
+### 7.2 导出流程
+
+```
+User clicks Export
+    │
+    ▼
+ExportUseCases.exportProject(format, config)
+    │
+    ▼
+CheckUseCases.runCheck()  [可选门槛检查]
+    │
+    ├─► FileProjectRepo.findById()
+    ├─► FileChapterRepo.findByProjectId()
+    │
+    ▼
+FileExportAdapter.export()
+    │
+    ├─► Merge chapters
+    ├─► Apply template
+    ├─► Write to output/
+    │
+    ▼
+ExportResult (filePath, format, status)
+```
+
+### 7.3 备份恢复流程
+
+```
+Backup Creation:
+────────────────
+User/Schedule triggers backup
+    │
+    ▼
+BackupUseCases.createBackup(projectId, type)
+    │
+    ├─► Collect files: meta, outline, chapters, snapshots
+    ├─► Create ZIP archive
+    ├─► Generate SHA256 checksum
+    │
+    ├─► FileBackupRepo.save(backup)
+    │
+    └─► Return Backup (id, path, checksum)
+
+Backup Restore:
+────────────────
+User selects backup
+    │
+    ▼
+BackupUseCases.restoreBackup(backupId)
+    │
+    ├─► Validate checksum
+    ├─► Extract to temp directory
+    ├─► Backup current project (if exists)
+    ├─► Move restored files to project directory
+    │
+    ├─► Update project metadata
+    ├─► Rebuild index
+    │
+    └─► Notify renderer (project-restored event)
+```
+
+### 7.4 设置更新流程
+
+```
+User changes settings
+    │
+    ▼
+SettingsUseCases.updateSettings(key, value)
+    │
+    ├─► FileSettingsRepo.save()
+    │
+    ├─► Emit settings-changed event
+    │    │
+    │    ├─► Renderer: update UI
+    │    ├─► LLM adapter: reinitialize if needed
+    │    └─► Cache: invalidate if needed
+    │
+    └─► Persist to runtime/config/settings.json
+```
+
+---
+
+## 8. 安全边界
+
+### 8.1 Preload 隔离
+
+- 仅暴露白名单 API
+- 文件系统访问仅限 `runtime/projects` 目录
+- 禁止直接暴露 Node.js API
+
+### 8.2 IPC 通信
+
+- 主进程处理所有文件系统操作
+- 渲染进程通过 IPC 发起请求
+- 响应结果通过 IPC 返回
+
+---
+
+## 9. 非功能设计
+
+### 9.1 可观测性
+
+所有关键操作记录：
+- `operationId` - 操作唯一标识
+- 耗时 - operation duration
+- 输入摘要 - input summary
+- 错误码 - error code
+
+### 9.2 错误恢复
+
+- 导出失败保留中间产物
+- 失败章节列表可查
+- 支持增量重试
+
+### 9.3 性能基线
+
+- 10 万字项目检查与导出时 UI 不阻塞
+- 任务可中断、可继续
+
+### 9.4 缓存策略
+
+**多级缓存架构**：
+
+| 层级 | 缓存内容 | 淘汰策略 | 实现 |
+|------|---------|---------|------|
+| L1 | 章节内容 | LRU (50章节) | Memory |
+| L2 | 索引向量 | LRU (100项目) | Memory |
+| L3 | 项目元数据 | LRU (20项目) | Memory |
+| 持久 | 大纲/快照 | TTL + 手动 | File |
+
+**缓存失效场景**：
+- 章节内容变更 -> 清除 L1 缓存
+- 项目删除 -> 清除所有缓存
+- 设置变更 -> 清除 LLM 配置缓存
+
+### 9.5 性能优化设计
+
+**热点数据预加载**：
+- 打开项目时预加载元数据、大纲、最近章节
+- 智能预测下一个可能访问的章节
+
+**异步处理**：
+- 大纲生成、内容检查、导出等耗时操作
+- 支持进度报告和取消
+
+**流式生成**：
+- LLM 输出采用流式响应
+- 实时展示生成进度
+
+**批量操作**：
+- 多个章节操作合并处理
+- 批量索引更新
+
+---
+
+## 10. 附录
+
+### 10.1 核心文件映射
+
+| 功能 | 文件路径 |
+|------|----------|
+| 项目实体 | `packages/domain/src/entities/Project.ts` |
+| 章节实体 | `packages/domain/src/entities/Chapter.ts` |
+| AI 生成用例 | `packages/application/src/usecases/GenerateContentUseCase.ts` |
+| LLM 适配器 | `packages/infrastructure/src/llm/RealLLMAdapter.ts` |
+| 索引实现 | `packages/infrastructure/src/index/SimpleIndex.ts` |
+| 导出用例 | `packages/application/src/usecases/ExportUseCases.ts` |
+| 端口定义 | `packages/application/src/ports/index.ts` |
+
+### 10.2 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| v1.0 | 2026-02-24 | MVP 架构方案（评审版） |
+| v1.1 | 2026-02-25 | 完善架构文档，添加实现细节 |
+| v1.2 | 2026-02-25 | 新增设置中心、备份中心模块；完善缓存策略与性能优化设计 |
