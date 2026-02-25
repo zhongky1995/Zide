@@ -266,6 +266,7 @@ function ProjectWorkspace({ addToast }: PageProps) {
   // 大纲相关状态
   const [selectedTemplate, setSelectedTemplate] = useState<string>('standard');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const handleGenerateOutline = async () => {
     if (!projectId) return;
@@ -274,11 +275,30 @@ function ProjectWorkspace({ addToast }: PageProps) {
 
   const handleConfirmGenerate = async (template: string, chapterCount?: number) => {
     if (!projectId) return;
-    const result = await outlineApi.generate(projectId, template, chapterCount);
-    if (result) {
-      setOutline(result);
+    setGenerating(true);
+    console.log('[handleConfirmGenerate] projectId:', projectId, 'template:', template, 'chapterCount:', chapterCount);
+    try {
+      // 直接调用底层 API
+      console.log('[handleConfirmGenerate] 调用 api.generateOutline...');
+      const rawResult = await window.zide.generateOutline({ projectId, template, chapterCount });
+      console.log('[handleConfirmGenerate] 原始结果:', rawResult);
+
+      if (rawResult?.success && rawResult?.data) {
+        const outline = rawResult.data;
+        console.log('[handleConfirmGenerate] 大纲数据:', outline);
+        setOutline(outline);
+        addToast?.('大纲生成成功，共' + (outline.chapters?.length || 0) + '章', 'success');
+      } else {
+        console.error('[handleConfirmGenerate] 失败:', rawResult?.error);
+        addToast?.('生成大纲失败: ' + (rawResult?.error || '未知错误'), 'error');
+      }
+    } catch (error) {
+      console.error('[handleConfirmGenerate] 异常:', error);
+      addToast?.('生成大纲失败: ' + (error as Error).message, 'error');
+    } finally {
+      setShowTemplateModal(false);
+      setGenerating(false);
     }
-    setShowTemplateModal(false);
   };
 
   const handleDeleteChapter = async (chapterId: string) => {
@@ -370,8 +390,8 @@ function ProjectWorkspace({ addToast }: PageProps) {
           <div className="flex justify-between items-center mb-4">
             <h3>大纲管理</h3>
             <div className="flex gap-2">
-              <button className="btn-primary" onClick={handleGenerateOutline} disabled={!!outline}>
-                {outline ? '已生成大纲' : '生成大纲'}
+              <button className="btn-primary" onClick={handleGenerateOutline}>
+                {outline?.chapters?.length ? '重新生成' : '生成大纲'}
               </button>
               {outline && outline.status === 'draft' && (
                 <button className="btn-success" onClick={handleConfirmOutline}>确认大纲</button>
@@ -461,8 +481,8 @@ function ProjectWorkspace({ addToast }: PageProps) {
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowTemplateModal(false)}>取消</button>
-              <button className="btn-primary" onClick={() => handleConfirmGenerate(selectedTemplate)}>
-                生成大纲
+              <button className="btn-primary" onClick={() => handleConfirmGenerate(selectedTemplate)} disabled={generating}>
+                {generating ? '生成中...' : '生成大纲'}
               </button>
             </div>
           </div>

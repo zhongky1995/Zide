@@ -45,8 +45,9 @@ export class FileChapterRepo implements ChapterRepoPort {
   }
 
   async findById(id: string): Promise<Chapter | null> {
-    // 需要从项目目录中查找，这里简化处理
-    // 实际实现需要通过项目列表或索引来定位
+    // 从章节 ID 格式 ch-xxx 解析出 chapterId
+    // 注意：此实现需要 projectId，可通过扫描所有项目目录实现
+    // 当前简化返回 null，使用 findByChapterId 代替
     return null;
   }
 

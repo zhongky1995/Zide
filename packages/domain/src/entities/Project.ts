@@ -35,6 +35,21 @@ export interface ProjectMeta {
   objectives?: string;     // 项目目标
   constraints?: string;    // 限制条件
   styleGuide?: string;     // 风格指南
+  writingGuide?: string;  // 写作指南（P1扩展）
+}
+
+// 写作风格类型
+export type WritingTone = 'professional' | 'casual' | 'academic' | 'creative';
+
+// 项目设定（全局设定集合）
+export interface ProjectSettings {
+  projectId: string;
+  meta: ProjectMeta;
+  glossaryCount: number;
+  writingTone?: WritingTone;
+  targetAudience?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // 完整项目实体

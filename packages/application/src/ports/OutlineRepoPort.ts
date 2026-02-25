@@ -1,4 +1,4 @@
-import { Outline, OutlineChapter, UpdateOutlineParams } from '@zide/domain';
+import { Outline, OutlineChapter, OutlineChange, UpdateOutlineParams } from '@zide/domain';
 
 export interface OutlineRepoPort {
   // 获取大纲
@@ -27,4 +27,16 @@ export interface OutlineRepoPort {
 
   // 删除大纲
   delete(projectId: string): Promise<void>;
+
+  // 版本管理：获取指定版本
+  getVersion(projectId: string, version: number): Promise<Outline | null>;
+
+  // 版本管理：列出所有版本
+  listVersions(projectId: string): Promise<{ version: number; createdAt: string }[]>;
+
+  // 版本管理：回滚到指定版本
+  rollback(projectId: string, targetVersion: number): Promise<Outline>;
+
+  // 变更历史：获取变更记录
+  getChangeHistory(projectId: string, limit?: number): Promise<OutlineChange[]>;
 }

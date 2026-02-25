@@ -2,9 +2,12 @@
 export interface OutlineChapter {
   id: string;
   number: string;          // 章节编号，如 "01", "02"
-  title: string;          // 章节标题
+  title: string;           // 章节标题
   target?: string;        // 章节目标/要求
   status: 'pending' | 'draft' | 'completed';
+  wordCount?: number;      // 预估字数
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // 大纲实体
@@ -12,8 +15,11 @@ export interface Outline {
   projectId: string;
   chapters: OutlineChapter[];
   status: 'none' | 'draft' | 'confirmed';
+  version: number;          // 版本号
+  parentVersion?: number;  // 父版本（支持回溯）
   generatedAt?: string;
   updatedAt: string;
+  confirmedAt?: string;
 }
 
 // 大纲模板类型
@@ -53,4 +59,20 @@ export interface ChapterOperationParams {
   chapterId?: string;
   chapter?: Partial<OutlineChapter>;
   targetIndex?: number;  // 用于排序
+}
+
+// 大纲变更记录
+export interface OutlineChange {
+  id: string;
+  outlineId: string;
+  version: number;
+  changes: {
+    type: 'add' | 'update' | 'delete' | 'reorder' | 'confirm';
+    chapterId?: string;
+    field?: string;
+    oldValue?: unknown;
+    newValue?: unknown;
+    details?: string;
+  }[];
+  createdAt: string;
 }

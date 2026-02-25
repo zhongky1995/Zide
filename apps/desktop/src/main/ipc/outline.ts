@@ -11,12 +11,15 @@ import { OutlineTemplate } from '@zide/domain';
 
 // 获取运行时基础路径
 function getRuntimeBasePath(): string {
-  return path.join(app.getPath('userData'), 'projects');
+  const userDataPath = app.getPath('userData');
+  console.log('[outline] userDataPath:', userDataPath);
+  return path.join(userDataPath, 'projects');
 }
 
 // 创建仓储实例
 function createRepos() {
   const runtimeBasePath = getRuntimeBasePath();
+  console.log('[outline] runtimeBasePath:', runtimeBasePath);
   return {
     projectRepo: new FileProjectRepo(runtimeBasePath),
     outlineRepo: new FileOutlineRepo(runtimeBasePath),
@@ -32,19 +35,23 @@ export function registerOutlineHandlers(): void {
     chapterCount?: number;
     customChapters?: string[];
   }) => {
+    console.log('[outline:generate] params:', JSON.stringify(params));
     try {
       const { projectRepo, outlineRepo } = createRepos();
       const useCase = new GenerateOutlineUseCase(outlineRepo, projectRepo);
+      console.log('[outline:generate] useCase created, calling execute...');
 
       const outline = await useCase.execute({
         projectId: params.projectId,
-        template: params.template as OutlineTemplate || OutlineTemplate.STANDARD,
+        template: (params.template as OutlineTemplate) || OutlineTemplate.STANDARD,
         chapterCount: params.chapterCount,
         customChapters: params.customChapters,
       });
 
+      console.log('[outline:generate] SUCCESS, chapters:', outline.chapters?.length, 'status:', outline.status);
       return { success: true, data: outline };
     } catch (error) {
+      console.error('[outline:generate] error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : '生成大纲失败'

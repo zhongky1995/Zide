@@ -1,14 +1,17 @@
 import { IndexPort, ContextChunk, ContextPack, IndexConfig, RetrieveParams } from '@zide/application';
 import { SimpleIndex } from './SimpleIndex';
+import { ContextCompressor, CompressionConfig, CompressionResult } from './ContextCompressor';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 // 基于 SimpleIndex 的索引适配器
 export class SimpleIndexAdapter implements IndexPort {
   private index: SimpleIndex;
+  private compressor: ContextCompressor;
 
-  constructor(runtimeBasePath: string) {
+  constructor(runtimeBasePath: string, compressionConfig?: Partial<CompressionConfig>) {
     this.index = new SimpleIndex(runtimeBasePath);
+    this.compressor = new ContextCompressor(compressionConfig);
   }
 
   async indexChapter(projectId: string, chapterId: string, content: string): Promise<void> {
@@ -98,6 +101,62 @@ export class SimpleIndexAdapter implements IndexPort {
         chunkIds: [ch.id],
       })),
     };
+  }
+
+  // 打包压缩后的上下文（自动选择压缩策略）
+  async packCompressedContext(projectId: string, chapterId: string, tokenBudget?: number): Promise<{
+    contextPack: ContextPack;
+    compressionResult: CompressionResult;
+  }> {
+    const contextPack = await this.packContext(projectId, chapterId);
+
+    // 如果指定了 token 预算，更新压缩器配置
+    if (tokenBudget) {
+      this.compressor.setConfig({ tokenBudget });
+    }
+
+    // 执行压缩
+    const compressionResult = this.compressor.compressForTokenBudget({
+      projectContext: contextPack.projectContext,
+      relatedChapters: contextPack.relatedChapters.map(ch => ({
+        id: ch.id,
+        chapterId: ch.chapterId,
+        chapterTitle: ch.chapterTitle,
+        content: ch.content,
+      })),
+      glossary: contextPack.glossary,
+      outline: contextPack.outline,
+    });
+
+    // 构建压缩后的 ContextPack
+    const compressedPack: ContextPack = {
+      projectContext: compressionResult.projectContext,
+      relatedChapters: compressionResult.relatedChapters.map(ch => ({
+        id: ch.id,
+        chapterId: ch.chapterId,
+        chapterTitle: ch.chapterTitle,
+        content: ch.content,
+        keywords: [],
+        relevance: 1 - compressionResult.compressionRatio,
+        position: 'middle' as const,
+      })),
+      glossary: compressionResult.glossary,
+      outline: compressionResult.outline,
+      sources: compressionResult.relatedChapters.map(ch => ({
+        chapterId: ch.chapterId,
+        chunkIds: [ch.id],
+      })),
+    };
+
+    return {
+      contextPack: compressedPack,
+      compressionResult,
+    };
+  }
+
+  // 获取压缩器实例（用于高级配置）
+  getCompressor(): ContextCompressor {
+    return this.compressor;
   }
 
   async getStats(projectId: string): Promise<{

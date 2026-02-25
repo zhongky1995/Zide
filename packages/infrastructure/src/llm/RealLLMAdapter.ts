@@ -270,7 +270,11 @@ export class RealLLMAdapter implements LLMPort {
       throw new Error(`OpenAI API 错误: ${response.status} - ${error}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as {
+      choices: Array<{ message?: { content: string } }>;
+      model: string;
+      usage?: { total_tokens: number };
+    };
     return {
       content: data.choices[0]?.message?.content || '',
       model: data.model,
@@ -313,11 +317,15 @@ export class RealLLMAdapter implements LLMPort {
       throw new Error(`Anthropic API 错误: ${response.status} - ${error}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as {
+      content: Array<{ text: string }>;
+      model: string;
+      usage?: { input_tokens: number; output_tokens: number };
+    };
     return {
       content: data.content[0]?.text || '',
       model: data.model,
-      tokens: data.usage?.input_tokens + data.usage?.output_tokens || 0,
+      tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0),
     };
   }
 
@@ -337,7 +345,8 @@ export class RealLLMAdapter implements LLMPort {
           messages: [{ role: 'user', content: 'ping' }],
         }),
       });
-      return response.status === 400 || response.status === 401;
+      // 400/401 表示认证失败但服务器可达，视为连接正常
+      return response.ok || response.status === 400 || response.status === 401;
     } catch {
       return false;
     }
@@ -368,7 +377,11 @@ export class RealLLMAdapter implements LLMPort {
       throw new Error(`MiniMax API 错误: ${response.status} - ${error}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as {
+      choices: Array<{ message?: { content: string } }>;
+      model: string;
+      usage?: { total_tokens: number };
+    };
     return {
       content: data.choices[0]?.message?.content || '',
       model: data.model,
@@ -391,7 +404,7 @@ export class RealLLMAdapter implements LLMPort {
           max_tokens: 1,
         }),
       });
-      return response.status !== 500;
+      return response.ok;
     } catch {
       return false;
     }
@@ -422,7 +435,11 @@ export class RealLLMAdapter implements LLMPort {
       throw new Error(`Kimi API 错误: ${response.status} - ${error}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as {
+      choices: Array<{ message?: { content: string } }>;
+      model: string;
+      usage?: { total_tokens: number };
+    };
     return {
       content: data.choices[0]?.message?.content || '',
       model: data.model,

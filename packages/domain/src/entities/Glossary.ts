@@ -12,6 +12,14 @@ export interface GlossaryTerm {
   updatedAt: string;
 }
 
+// 术语表实体
+export interface Glossary {
+  projectId: string;
+  terms: GlossaryTerm[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // 术语创建参数
 export interface CreateGlossaryParams {
   projectId: string;

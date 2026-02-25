@@ -1,6 +1,7 @@
 import {
   Outline,
   OutlineChapter,
+  OutlineChange,
   OutlineTemplate,
   GenerateOutlineParams,
   UpdateOutlineParams,
@@ -58,8 +59,14 @@ export class GenerateOutlineUseCase {
     if (customChapters && customChapters.length > 0) {
       chapterTitles = customChapters;
     } else {
-      const templateKey = template || OutlineTemplate.STANDARD;
+      // 确保 template 是有效的枚举值
+      const templateKey = (template && TEMPLATES[template]) ? template : OutlineTemplate.STANDARD;
+      console.log('[GenerateOutline] templateKey:', templateKey, 'available:', Object.keys(TEMPLATES));
       chapterTitles = TEMPLATES[templateKey];
+      if (!chapterTitles) {
+        console.error('[GenerateOutline] Invalid template, using STANDARD');
+        chapterTitles = TEMPLATES[OutlineTemplate.STANDARD];
+      }
       if (chapterCount && chapterCount > chapterTitles.length) {
         // 如果需要更多章节，在中间插入
         const additional = chapterCount - chapterTitles.length;
@@ -83,6 +90,7 @@ export class GenerateOutlineUseCase {
       projectId,
       chapters,
       status: 'draft',
+      version: 1,
       generatedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -153,5 +161,73 @@ export class ManageChapterUseCase {
 
   async reorderChapters(projectId: string, chapterIds: string[]): Promise<Outline> {
     return this.outlineRepo.reorderChapters(projectId, chapterIds);
+  }
+}
+
+// 大纲版本管理用例
+export class OutlineVersionUseCase {
+  constructor(private readonly outlineRepo: OutlineRepoPort) {}
+
+  // 确认大纲（创建版本快照）
+  async confirm(projectId: string): Promise<Outline> {
+    const outline = await this.outlineRepo.findByProjectId(projectId);
+    if (!outline) {
+      throw new OutlineNotFoundError(projectId);
+    }
+
+    // 创建版本快照
+    const confirmedOutline = await this.outlineRepo.confirm(projectId);
+
+    // 记录变更
+    await this.recordChange(projectId, {
+      type: 'confirm',
+      details: `大纲确认，共 ${outline.chapters.length} 章`,
+    });
+
+    return confirmedOutline;
+  }
+
+  // 回滚到指定版本
+  async rollback(projectId: string, targetVersion: number): Promise<Outline> {
+    return this.outlineRepo.rollback(projectId, targetVersion);
+  }
+
+  // 获取指定版本
+  async getVersion(projectId: string, version: number): Promise<Outline | null> {
+    return this.outlineRepo.getVersion(projectId, version);
+  }
+
+  // 列出所有版本
+  async listVersions(projectId: string): Promise<{ version: number; createdAt: string }[]> {
+    return this.outlineRepo.listVersions(projectId);
+  }
+
+  // 获取变更历史
+  async getHistory(projectId: string, limit: number = 10): Promise<OutlineChange[]> {
+    return this.outlineRepo.getChangeHistory(projectId, limit);
+  }
+
+  private async recordChange(
+    projectId: string,
+    change: { type: string; details: string }
+  ): Promise<void> {
+    const outline = await this.outlineRepo.findByProjectId(projectId);
+    if (!outline) return;
+
+    const outlineChange: OutlineChange = {
+      id: `oc-${Date.now()}`,
+      outlineId: outline.projectId,
+      version: outline.version,
+      changes: [
+        {
+          type: change.type as 'add' | 'update' | 'delete' | 'reorder' | 'confirm',
+          details: change.details,
+        },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+
+    // 保存变更记录（通过 repo 暂存，后续实现存储层）
+    console.log('[OutlineVersion] Recorded change:', outlineChange);
   }
 }
