@@ -9,7 +9,7 @@ export class MetricsUseCases {
   constructor(private readonly metricsPort: MetricsPort) {}
 
   // 获取项目统计
-  async getProjectMetrics(projectId: string): Promise<ProjectMetrics> {
+  async getProjectMetrics(projectId: string): Promise<ProjectMetrics | null> {
     return this.metricsPort.getProjectMetrics(projectId);
   }
 

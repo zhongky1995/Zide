@@ -385,6 +385,78 @@ textarea {
   margin-top: 24px;
 }
 
+/* Template Grid */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.template-card {
+  padding: 16px;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.template-card:hover {
+  border-color: var(--primary);
+  background: var(--gray-50);
+}
+
+.template-card.selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.template-card h4 {
+  margin: 0 0 8px 0;
+  color: var(--gray-800);
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--gray-400);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 18px;
+  border-radius: 4px;
+}
+
+.btn-icon:hover {
+  background: var(--gray-100);
+  color: var(--red);
+}
+
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.bg-green {
+  background: var(--success);
+  color: white;
+}
+
+.bg-yellow {
+  background: var(--warning);
+  color: white;
+}
+
 /* Chapter List */
 .chapter-list {
   display: flex;
@@ -609,4 +681,297 @@ textarea {
 .outline-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Settings Page */
+.settings-page {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.test-result {
+  padding: 12px;
+  border-radius: var(--radius);
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.test-result.success {
+  background: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #86efac;
+}
+
+.test-result.error {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+/* Improved Project Card */
+.project-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.project-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.project-card:hover::before {
+  transform: scaleX(1);
+}
+
+.project-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gray-100);
+}
+
+/* Improved Chapter Item */
+.chapter-item {
+  position: relative;
+}
+
+.chapter-item .status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-indicator.todo {
+  background: var(--gray-400);
+}
+
+.status-indicator.in-progress {
+  background: var(--primary-color);
+  animation: pulse 2s infinite;
+}
+
+.status-indicator.completed {
+  background: var(--success-color);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Editor improvements */
+.editor-toolbar {
+  background: var(--gray-50);
+}
+
+.editor-toolbar .btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-textarea {
+  line-height: 2;
+  padding: 24px;
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--gray-200) 25%, var(--gray-100) 50%, var(--gray-200) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2000;
+}
+
+.toast {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  margin-top: 8px;
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.3s ease;
+}
+
+.toast.success {
+  background: var(--success-color);
+  color: white;
+}
+
+.toast.error {
+  background: var(--danger-color);
+  color: white;
+}
+
+.toast.info {
+  background: var(--primary-color);
+  color: white;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Grid layout for export page */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Issue list */
+.issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.issue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--warning-color);
+}
+
+.issue-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.issue-type {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.type-missing_chapter {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.type-term_conflict {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.type-duplicate_content {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.type-low_completion {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.type-outline_drift {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+.issue-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* History list */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item {
+  padding: 12px;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Tab navigation improvement */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--gray-200);
+  margin-bottom: 24px;
+}
+
+.tab {
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--gray-500);
+  position: relative;
+  transition: color 0.2s;
+}
+
+.tab:hover {
+  color: var(--gray-700);
+}
+
+.tab.active {
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary-color);
 }

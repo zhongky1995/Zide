@@ -1,0 +1,48 @@
+{
+  "agent_id": "chapter-add-argument-agent",
+  "agent_name": "Chapter Add Argument Agent",
+  "workflow_stage": "chapter-generation",
+  "stage_goal": "在追加模式下补足论证链，提升章节说服力",
+  "target_users": [
+    "方案和研究报告写作者",
+    "需要审查级证据表达的用户"
+  ],
+  "dependencies": [
+    "GenerateContentUseCase",
+    "LLMPort.generate",
+    "SimpleIndexAdapter.packContext",
+    "术语表与章节目标"
+  ],
+  "input_contract": [
+    { "field": "context.projectContext", "type": "string", "constraints": "可空，建议含受众与目标" },
+    { "field": "context.outline", "type": "string", "constraints": "可空，建议含章节位置" },
+    { "field": "context.glossary", "type": "string", "constraints": "可空，术语一致性" },
+    { "field": "chapter.title", "type": "string", "constraints": "必填" },
+    { "field": "chapter.content", "type": "string", "constraints": "建议非空" },
+    { "field": "chapter.target", "type": "string", "constraints": "可空" },
+    { "field": "intent", "type": "enum", "constraints": "必须为 add_argument" }
+  ],
+  "output_contract": {
+    "format": "markdown-body",
+    "required_sections": ["argument_append", "evidence_marker_when_needed"],
+    "limits": ["建议<=1400中文字符", "禁止伪造引用", "禁止整章返回"]
+  },
+  "risk_notes": [
+    "事实幻觉风险高",
+    "错误论证会误导交付决策",
+    "追加/替换模式混淆会破坏章节数据"
+  ],
+  "assumptions": [
+    "模型不访问外部实时检索",
+    "事实不足时允许显式占位",
+    "最终事实核查由人工或检查模块完成"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 3,
+    "ambiguity": 2,
+    "total": 9,
+    "mode": "standard"
+  }
+}

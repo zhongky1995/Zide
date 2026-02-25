@@ -1,0 +1,69 @@
+{
+  "generated_at": "2026-02-25T07:19:56Z",
+  "mode": "all",
+  "project_context_sources": [
+    "README.md",
+    "TODO.md",
+    "PRD.md",
+    "ARCHITECTURE.md",
+    "packages/application/src/ports/LLMPort.ts",
+    "packages/application/src/usecases/GenerateContentUseCase.ts",
+    "packages/infrastructure/src/llm/RealLLMAdapter.ts"
+  ],
+  "agents": [
+    {
+      "agent_id": "chapter-continue-agent",
+      "agent_name": "Chapter Continue Agent",
+      "workflow_stage": "chapter-generation",
+      "prompt_file": "chapter-continue-agent.prompt.md",
+      "context_file": "chapter-continue-agent.context.json",
+      "complexity_mode": "lean",
+      "updated": "2026-02-25T07:19:56Z"
+    },
+    {
+      "agent_id": "chapter-expand-agent",
+      "agent_name": "Chapter Expand Agent",
+      "workflow_stage": "chapter-generation",
+      "prompt_file": "chapter-expand-agent.prompt.md",
+      "context_file": "chapter-expand-agent.context.json",
+      "complexity_mode": "lean",
+      "updated": "2026-02-25T07:19:56Z"
+    },
+    {
+      "agent_id": "chapter-rewrite-agent",
+      "agent_name": "Chapter Rewrite Agent",
+      "workflow_stage": "chapter-generation",
+      "prompt_file": "chapter-rewrite-agent.prompt.md",
+      "context_file": "chapter-rewrite-agent.context.json",
+      "complexity_mode": "lean",
+      "updated": "2026-02-25T07:19:56Z"
+    },
+    {
+      "agent_id": "chapter-add-argument-agent",
+      "agent_name": "Chapter Add Argument Agent",
+      "workflow_stage": "chapter-generation",
+      "prompt_file": "chapter-add-argument-agent.prompt.md",
+      "context_file": "chapter-add-argument-agent.context.json",
+      "complexity_mode": "standard",
+      "updated": "2026-02-25T07:19:56Z"
+    },
+    {
+      "agent_id": "chapter-polish-agent",
+      "agent_name": "Chapter Polish Agent",
+      "workflow_stage": "chapter-generation",
+      "prompt_file": "chapter-polish-agent.prompt.md",
+      "context_file": "chapter-polish-agent.context.json",
+      "complexity_mode": "lean",
+      "updated": "2026-02-25T07:19:56Z"
+    },
+    {
+      "agent_id": "chapter-simplify-agent",
+      "agent_name": "Chapter Simplify Agent",
+      "workflow_stage": "chapter-generation",
+      "prompt_file": "chapter-simplify-agent.prompt.md",
+      "context_file": "chapter-simplify-agent.context.json",
+      "complexity_mode": "lean",
+      "updated": "2026-02-25T07:19:56Z"
+    }
+  ]
+}

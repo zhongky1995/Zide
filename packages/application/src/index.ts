@@ -7,6 +7,8 @@ export * from './ports/LLMPort';
 export * from './ports/IndexPort';
 export * from './ports/ExportPort';
 export * from './ports/RuleEnginePort';
+export * from './ports/MetricsPort';
+export * from './ports/SettingsPort';
 
 // 用例导出
 export * from './usecases/CreateProjectUseCase';
@@ -18,3 +20,4 @@ export * from './usecases/GenerateContentUseCase';
 export * from './usecases/CheckUseCases';
 export * from './usecases/ExportUseCases';
 export * from './usecases/MetricsUseCases';
+export * from './usecases/SettingsUseCases';

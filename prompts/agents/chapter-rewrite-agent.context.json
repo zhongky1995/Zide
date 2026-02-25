@@ -1,0 +1,45 @@
+{
+  "agent_id": "chapter-rewrite-agent",
+  "agent_name": "Chapter Rewrite Agent",
+  "workflow_stage": "chapter-generation",
+  "stage_goal": "输出完整替换版章节，提高结构清晰度与表达质量",
+  "target_users": [
+    "需要改稿提质的写作者",
+    "交付前整章重排用户"
+  ],
+  "dependencies": [
+    "GenerateContentUseCase",
+    "LLMPort.generate",
+    "ChapterRepo.updateContent"
+  ],
+  "input_contract": [
+    { "field": "context.projectContext", "type": "string", "constraints": "可空" },
+    { "field": "context.outline", "type": "string", "constraints": "可空" },
+    { "field": "context.glossary", "type": "string", "constraints": "可空" },
+    { "field": "chapter.title", "type": "string", "constraints": "必填" },
+    { "field": "chapter.content", "type": "string", "constraints": "建议非空" },
+    { "field": "chapter.target", "type": "string", "constraints": "可空" },
+    { "field": "intent", "type": "enum", "constraints": "必须为 rewrite" }
+  ],
+  "output_contract": {
+    "format": "markdown-body",
+    "required_sections": ["full_chapter_content"],
+    "limits": ["长度约为原文80%-120%", "禁止改动说明", "禁止无依据事实新增"]
+  },
+  "risk_notes": [
+    "重写失真会改变业务结论",
+    "输出不完整会导致替换后内容残缺"
+  ],
+  "assumptions": [
+    "替换策略由上层 usecase 控制",
+    "章节目标用于约束重写方向"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 3,
+    "ambiguity": 1,
+    "total": 8,
+    "mode": "lean"
+  }
+}

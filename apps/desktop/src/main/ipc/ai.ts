@@ -1,24 +1,33 @@
 import { ipcMain } from 'electron';
-import * as path from 'path';
-import { app } from 'electron';
-import { MockLLMAdapter, SimpleIndexAdapter } from '@zide/infrastructure';
-import { FileChapterRepo } from '@zide/infrastructure';
+import { MockLLMAdapter, RealLLMAdapter, AIStrategyManager } from '@zide/infrastructure';
 import { GenerateContentUseCase } from '@zide/application';
 import { ChapterIntent } from '@zide/domain';
+import { LLMProviderConfig } from '@zide/application';
+import { serviceContainer } from '../ServiceContainer';
 
-// 获取运行时基础路径
-function getRuntimeBasePath(): string {
-  return path.join(app.getPath('userData'), 'projects');
-}
+// LLM 适配器实例（单例）
+let llmAdapter: MockLLMAdapter | RealLLMAdapter = new MockLLMAdapter();
+let useRealLLM = false;
 
-// 创建用例实例
+// AI 策略管理器实例（单例）
+const strategyManager = new AIStrategyManager();
+
+// 创建用例实例（使用服务容器单例）
 function createGenerateUseCase(): GenerateContentUseCase {
-  const runtimeBasePath = getRuntimeBasePath();
-  const llmAdapter = new MockLLMAdapter();
-  const indexAdapter = new SimpleIndexAdapter(runtimeBasePath);
-  const chapterRepo = new FileChapterRepo(runtimeBasePath);
+  // 从策略管理器获取上下文压缩配置
+  const contextConfig = strategyManager.getContextConfig();
 
-  return new GenerateContentUseCase(llmAdapter, indexAdapter, chapterRepo);
+  // 使用策略配置创建索引适配器（包含 ContextCompressor）
+  // 这里暂时还需要创建新的，因为配置可能每次不同
+  const { SimpleIndexAdapter } = require('@zide/infrastructure');
+  const indexAdapter = new SimpleIndexAdapter(serviceContainer.runtimeBasePath, {
+    maxProjectContextChars: contextConfig.maxProjectContextChars,
+    maxRelatedChapters: contextConfig.maxRelatedChapters,
+    compressionStrategy: contextConfig.compressionStrategy,
+    tokenBudget: 8000,
+  });
+
+  return new GenerateContentUseCase(llmAdapter, indexAdapter, serviceContainer.chapterRepo);
 }
 
 // 注册 AI 相关的 IPC 处理函数
@@ -226,6 +235,89 @@ export function registerAIHandlers(): void {
       return { success: true, data: config };
     } catch (error) {
       return { success: false, error: '获取配置失败' };
+    }
+  });
+
+  // 更新 LLM 配置
+  ipcMain.handle('ai:updateConfig', async (_event, config: Partial<LLMProviderConfig>) => {
+    try {
+      // 如果配置了 apiKey 或切换到真实模型，切换到真实适配器
+      if (config.apiKey || config.provider === 'openai' || config.provider === 'anthropic' ||
+          config.provider === 'minimax' || config.provider === 'kimi') {
+        if (!useRealLLM || !(llmAdapter instanceof RealLLMAdapter)) {
+          llmAdapter = new RealLLMAdapter();
+          useRealLLM = true;
+        }
+        llmAdapter.updateConfig(config);
+      } else {
+        // 否则使用 mock 适配器
+        if (!(llmAdapter instanceof MockLLMAdapter)) {
+          llmAdapter = new MockLLMAdapter();
+          useRealLLM = false;
+        }
+        llmAdapter.updateConfig(config);
+      }
+
+      return { success: true, data: llmAdapter.getConfig() };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : '更新配置失败' };
+    }
+  });
+
+  // 切换 LLM 适配器（mock / real）
+  ipcMain.handle('ai:switchAdapter', async (_event, useReal: boolean) => {
+    try {
+      if (useReal && !(llmAdapter instanceof RealLLMAdapter)) {
+        llmAdapter = new RealLLMAdapter();
+        useRealLLM = true;
+      } else if (!useReal && !(llmAdapter instanceof MockLLMAdapter)) {
+        llmAdapter = new MockLLMAdapter();
+        useRealLLM = false;
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: '切换适配器失败' };
+    }
+  });
+
+  // 获取当前策略
+  ipcMain.handle('ai:getStrategy', async () => {
+    try {
+      const strategy = strategyManager.getActiveStrategy();
+      return { success: true, data: strategy };
+    } catch (error) {
+      return { success: false, error: '获取策略失败' };
+    }
+  });
+
+  // 获取所有可用策略
+  ipcMain.handle('ai:listStrategies', async () => {
+    try {
+      const strategies = strategyManager.listStrategies();
+      return { success: true, data: strategies };
+    } catch (error) {
+      return { success: false, error: '获取策略列表失败' };
+    }
+  });
+
+  // 切换 AI 策略
+  ipcMain.handle('ai:setStrategy', async (_event, strategyId: string) => {
+    try {
+      strategyManager.setActiveStrategy(strategyId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: '切换策略失败' };
+    }
+  });
+
+  // 获取意图配置
+  ipcMain.handle('ai:getIntentConfig', async (_event, intent: string) => {
+    try {
+      const config = strategyManager.getIntentConfig(intent as ChapterIntent);
+      return { success: true, data: config };
+    } catch (error) {
+      return { success: false, error: '获取意图配置失败' };
     }
   });
 }

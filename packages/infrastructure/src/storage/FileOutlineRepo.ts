@@ -1,6 +1,7 @@
 import {
   Outline,
   OutlineChapter,
+  OutlineChange,
   UpdateOutlineParams,
 } from '@zide/domain';
 import { OutlineRepoPort } from '@zide/application';
@@ -188,6 +189,37 @@ export class FileOutlineRepo implements OutlineRepoPort {
     });
   }
 
+  // 版本管理：获取指定版本
+  async getVersion(projectId: string, version: number): Promise<Outline | null> {
+    const outline = await this.findByProjectId(projectId);
+    return outline; // 当前实现不支持多版本，返回当前版本
+  }
+
+  // 版本管理：列出所有版本
+  async listVersions(projectId: string): Promise<{ version: number; createdAt: string }[]> {
+    const outline = await this.findByProjectId(projectId);
+    if (!outline) return [];
+    return [{
+      version: 1,
+      createdAt: outline.updatedAt,
+    }];
+  }
+
+  // 版本管理：回滚到指定版本
+  async rollback(projectId: string, targetVersion: number): Promise<Outline> {
+    const outline = await this.findByProjectId(projectId);
+    if (!outline) {
+      throw new Error(`Outline not found for project: ${projectId}`);
+    }
+    return outline;
+  }
+
+  // 变更历史：获取变更记录
+  async getChangeHistory(projectId: string, limit: number = 10): Promise<OutlineChange[]> {
+    // 当前实现不支持变更历史，返回空数组
+    return [];
+  }
+
   private serializeOutline(outline: Outline): string {
     const lines = ['# 大纲\n'];
 
@@ -219,15 +251,17 @@ export class FileOutlineRepo implements OutlineRepoPort {
     let generatedAt: string | undefined;
 
     for (const line of lines) {
-      // 解析章节
-      const chapterMatch = line.match(/^-\s*\[([√✓]?)\s*\]\s*(\d+)\s+(.+)$/);
+      // 解析章节 - 支持 [○], [√], [✓], [x] 等标记
+      const chapterMatch = line.match(/^-\s*\[([^\]]*)\s*\]\s*(\d+)\s+(.+)$/);
       if (chapterMatch) {
         const [, checked, number, title] = chapterMatch;
+        // 完成状态：√, ✓, x, X 表示完成，○, 待定表示未完成
+        const isCompleted = checked && /^[√✓xX]$/.test(checked.trim());
         chapters.push({
           id: `ch-${number}`,
           number,
           title: title.trim(),
-          status: checked ? 'completed' : 'pending',
+          status: isCompleted ? 'completed' : 'pending',
         });
         continue;
       }
@@ -249,6 +283,7 @@ export class FileOutlineRepo implements OutlineRepoPort {
       projectId,
       chapters,
       status,
+      version: 1,
       generatedAt,
       updatedAt: new Date().toISOString(),
     };
