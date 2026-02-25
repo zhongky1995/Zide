@@ -1,7 +1,15 @@
 import { ExportPort } from '@zide/application';
-import { ExportFormat, ExportStatus, ExportConfig, ExportResult } from '@zide/domain';
+import {
+  ExportFormat,
+  ExportStatus,
+  ExportConfig,
+  ExportResult,
+  ExportFormatNotSupportedError,
+} from '@zide/domain';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+
+const SUPPORTED_EXPORT_FORMATS = new Set(Object.values(ExportFormat));
 
 export class FileExportAdapter implements ExportPort {
   constructor(private readonly runtimeBasePath: string) {}
@@ -11,6 +19,8 @@ export class FileExportAdapter implements ExportPort {
     format: ExportFormat,
     config?: Partial<ExportConfig>
   ): Promise<ExportResult> {
+    this.assertSupportedFormat(format);
+
     const outputDir = path.join(this.runtimeBasePath, projectId, 'output');
     await fs.mkdir(outputDir, { recursive: true });
 
@@ -62,6 +72,8 @@ export class FileExportAdapter implements ExportPort {
     format: ExportFormat,
     config?: Partial<ExportConfig>
   ): Promise<ExportResult> {
+    this.assertSupportedFormat(format);
+
     const outputDir = path.join(this.runtimeBasePath, projectId, 'output');
     await fs.mkdir(outputDir, { recursive: true });
 
@@ -100,6 +112,8 @@ export class FileExportAdapter implements ExportPort {
   }
 
   async preview(projectId: string, format: ExportFormat): Promise<string> {
+    this.assertSupportedFormat(format);
+
     const chapters = await this.collectChapters(projectId);
     const config: ExportConfig = { format };
 
@@ -123,8 +137,12 @@ export class FileExportAdapter implements ExportPort {
         const filePath = path.join(outputDir, file);
         const stats = await fs.stat(filePath);
 
-        const format = file.endsWith('.md') ? ExportFormat.MARKDOWN :
-                       file.endsWith('.html') ? ExportFormat.HTML : ExportFormat.PDF;
+        const format =
+          file.endsWith('.md') || file.endsWith('.markdown')
+            ? ExportFormat.MARKDOWN
+            : file.endsWith('.html')
+              ? ExportFormat.HTML
+              : ExportFormat.PDF;
 
         recent.push({
           jobId: file,
@@ -327,5 +345,11 @@ export class FileExportAdapter implements ExportPort {
     const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
     const englishWords = text.replace(/[\u4e00-\u9fa5]/g, '').split(/\s+/).filter(w => w.length > 0).length;
     return chineseChars + englishWords;
+  }
+
+  private assertSupportedFormat(format: unknown): asserts format is ExportFormat {
+    if (typeof format !== 'string' || !SUPPORTED_EXPORT_FORMATS.has(format as ExportFormat)) {
+      throw new ExportFormatNotSupportedError(String(format));
+    }
   }
 }

@@ -12,10 +12,22 @@ interface PromptBundle {
  * 支持 OpenAI、Anthropic Claude、Minimax、Kimi
  */
 export class RealLLMAdapter implements LLMPort {
+  private static readonly DEFAULT_REQUEST_TIMEOUT_MS = 60000;
+  private static readonly DEFAULT_PING_TIMEOUT_MS = 15000;
   private promptLoader: PromptLoader;
+  private readonly requestTimeoutMs: number;
+  private readonly pingTimeoutMs: number;
 
   constructor(promptLoader?: PromptLoader) {
     this.promptLoader = promptLoader || new PromptLoader();
+    this.requestTimeoutMs = this.resolveTimeoutMs(
+      process.env.ZIDE_LLM_TIMEOUT_MS,
+      RealLLMAdapter.DEFAULT_REQUEST_TIMEOUT_MS
+    );
+    this.pingTimeoutMs = this.resolveTimeoutMs(
+      process.env.ZIDE_LLM_PING_TIMEOUT_MS,
+      RealLLMAdapter.DEFAULT_PING_TIMEOUT_MS
+    );
   }
 
   private config: LLMProviderConfig = {
@@ -45,6 +57,13 @@ export class RealLLMAdapter implements LLMPort {
       case 'kimi':
         result = await this.callKimi(promptBundle);
         break;
+      case 'azure':
+        result = await this.callAzure(promptBundle);
+        break;
+      case 'custom':
+        // 自定义：使用 baseUrl 判断实际的 API
+        result = await this.callCustom(promptBundle);
+        break;
       default:
         throw new Error(`不支持的 LLM 提供商: ${this.config.provider}`);
     }
@@ -68,6 +87,10 @@ export class RealLLMAdapter implements LLMPort {
           return await this.pingMinimax();
         case 'kimi':
           return await this.pingKimi();
+        case 'azure':
+          return await this.pingAzure();
+        case 'custom':
+          return await this.pingCustom();
         default:
           return false;
       }
@@ -77,11 +100,8 @@ export class RealLLMAdapter implements LLMPort {
   }
 
   getConfig(): LLMProviderConfig {
-    // 不返回完整 apiKey 到前端，安全考虑
-    return {
-      ...this.config,
-      apiKey: this.config.apiKey ? '***' + this.config.apiKey.slice(-4) : undefined,
-    };
+    // 桌面端本地配置需要可回写，返回完整配置避免掩码值覆盖真实 key
+    return { ...this.config };
   }
 
   updateConfig(config: Partial<LLMProviderConfig>): void {
@@ -147,25 +167,28 @@ export class RealLLMAdapter implements LLMPort {
 
   private getSystemPrompt(intent: ChapterIntent): string {
     // 尝试从外部prompt文件加载
-    const intentKey = intent.toLowerCase();
-    const externalPrompt = this.promptLoader.load(intentKey, 'global');
+    const promptId = this.getExternalPromptId(intent);
+    const externalPrompt = this.promptLoader.load(promptId, 'global');
 
     if (externalPrompt) {
       // 如果加载到外部prompt，解析并使用
-      return this.parseExternalPrompt(externalPrompt, intent);
+      const composed = this.composeExternalPrompt(promptId, externalPrompt);
+      if (composed) {
+        return composed;
+      }
     }
 
     // Fallback: 使用内置硬编码prompt
     const basePrompt = `你是 Zide 长文 AI 生产系统中的章节写作代理。
 
 ## 任务定位
-在”可回滚、可检查、可交付”的写作流程中，根据给定上下文完成单次章节生成任务。
+在“可回滚、可检查、可交付”的写作流程中，根据给定上下文完成单次章节生成任务。
 
 ## 通用硬约束
 1. 严格遵循输入中的项目背景、大纲、术语、章节目标。
 2. 输出必须是可直接写入章节的 Markdown 正文，不要输出解释、前言、道歉、过程说明。
 3. 保持原文语言、风格、术语一致；禁止无依据地改变立场或结论。
-4. 禁止编造具体数据、机构、研究结论；若事实依据不足，使用”[待补充数据]”占位。
+4. 禁止编造具体数据、机构、研究结论；若事实依据不足，使用“[待补充数据]”占位。
 5. 若多条指令冲突，优先级为：项目/章节硬约束 > 用户自定义要求 > 默认意图策略。`;
 
     const prompts: Record<ChapterIntent, string> = {
@@ -239,35 +262,60 @@ export class RealLLMAdapter implements LLMPort {
     return '替换模式（replace）：请返回完整章节全文，系统会用该结果替换当前章节。';
   }
 
-  /**
-   * 解析外部prompt文件
-   * 外部prompt格式：包含metadata和实际prompt内容
-   */
-  private parseExternalPrompt(content: string, intent: ChapterIntent): string {
-    // 提取metadata后的实际内容（跳过以-开头的行）
-    const lines = content.split('\n');
-    const actualContent: string[] = [];
-    let inContent = false;
+  private getExternalPromptId(intent: ChapterIntent): string {
+    const promptMap: Record<ChapterIntent, string> = {
+      [ChapterIntent.CONTINUE]: 'chapter-continue',
+      [ChapterIntent.EXPAND]: 'chapter-expand',
+      [ChapterIntent.REWRITE]: 'chapter-rewrite',
+      [ChapterIntent.ADD_ARGUMENT]: 'chapter-add-argument',
+      [ChapterIntent.POLISH]: 'chapter-polish',
+      [ChapterIntent.SIMPLIFY]: 'chapter-simplify',
+    };
 
-    for (const line of lines) {
-      if (!inContent && line.trim() && !line.startsWith('#') && !line.startsWith('-')) {
-        inContent = true;
-      }
-      if (inContent) {
-        actualContent.push(line);
-      }
+    return promptMap[intent] || promptMap[ChapterIntent.CONTINUE];
+  }
+
+  private composeExternalPrompt(promptId: string, content: string): string {
+    const intentContent = this.extractPromptBody(content);
+    if (!intentContent) {
+      return '';
     }
 
-    const promptContent = actualContent.join('\n').trim();
+    // chapter-base 本身不需要叠加
+    if (promptId === 'chapter-base') {
+      return intentContent;
+    }
 
-    // 加载base prompt并组合
     const basePrompt = this.promptLoader.load('chapter-base', 'global');
-    if (basePrompt) {
-      const baseContent = this.parseExternalPrompt(basePrompt, intent);
-      return [baseContent, promptContent].join('\n\n');
+    const baseContent = basePrompt ? this.extractPromptBody(basePrompt) : '';
+    return [baseContent, intentContent].filter(Boolean).join('\n\n');
+  }
+
+  /**
+   * 提取 prompt 正文，跳过顶部元数据行
+   */
+  private extractPromptBody(content: string): string {
+    const lines = content.split('\n');
+    let start = 0;
+
+    while (start < lines.length) {
+      const trimmed = lines[start].trim();
+      if (
+        trimmed === '' ||
+        trimmed.startsWith('# Prompt:') ||
+        trimmed.startsWith('- prompt_id:') ||
+        trimmed.startsWith('- version:') ||
+        trimmed.startsWith('- created_at:') ||
+        trimmed.startsWith('- description:') ||
+        trimmed.startsWith('- extends:')
+      ) {
+        start += 1;
+        continue;
+      }
+      break;
     }
 
-    return promptContent;
+    return lines.slice(start).join('\n').trim();
   }
 
   private clip(value: string, maxChars: number): string {
@@ -277,6 +325,48 @@ export class RealLLMAdapter implements LLMPort {
     }
 
     return `${normalized.slice(0, maxChars)}\n...[已截断 ${normalized.length - maxChars} 字符]`;
+  }
+
+  private resolveTimeoutMs(rawValue: string | undefined, fallback: number): number {
+    if (!rawValue) return fallback;
+    const parsed = Number.parseInt(rawValue, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  private getRequestMaxTokens(): number {
+    const configured = this.config.maxTokens;
+    const fallback = 4000;
+    const numeric = typeof configured === 'number' && Number.isFinite(configured)
+      ? Math.floor(configured)
+      : fallback;
+
+    // 防御性上限：单次生成过大容易导致响应延迟和内存抖动
+    return Math.min(Math.max(numeric, 128), 8192);
+  }
+
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+    providerLabel: string
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        const timeoutSec = Math.ceil(timeoutMs / 1000);
+        throw new Error(`${providerLabel} 请求超时（>${timeoutSec} 秒），请检查网络、Base URL 与模型服务状态后重试`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private resolveBaseUrl(defaultUrl: string): string {
@@ -296,7 +386,7 @@ export class RealLLMAdapter implements LLMPort {
   // ========== OpenAI 调用 ==========
   private async callOpenAI(prompt: PromptBundle): Promise<{ content: string; model: string; tokens: number }> {
     const baseUrl = this.resolveBaseUrl('https://api.openai.com/v1');
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await this.fetchWithTimeout(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -308,10 +398,10 @@ export class RealLLMAdapter implements LLMPort {
           { role: 'system', content: prompt.system },
           { role: 'user', content: prompt.user },
         ],
-        max_tokens: this.config.maxTokens,
+        max_tokens: this.getRequestMaxTokens(),
         temperature: this.config.temperature,
       }),
-    });
+    }, this.requestTimeoutMs, 'OpenAI API');
 
     if (!response.ok) {
       const error = await response.text();
@@ -332,19 +422,19 @@ export class RealLLMAdapter implements LLMPort {
 
   private async pingOpenAI(): Promise<boolean> {
     const baseUrl = this.resolveBaseUrl('https://api.openai.com/v1');
-    const response = await fetch(`${baseUrl}/models`, {
+    const response = await this.fetchWithTimeout(`${baseUrl}/models`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${this.config.apiKey}`,
       },
-    });
+    }, this.pingTimeoutMs, 'OpenAI API');
     return response.ok;
   }
 
   // ========== Anthropic 调用 ==========
   private async callAnthropic(prompt: PromptBundle): Promise<{ content: string; model: string; tokens: number }> {
     const baseUrl = this.resolveBaseUrl('https://api.anthropic.com/v1');
-    const response = await fetch(`${baseUrl}/messages`, {
+    const response = await this.fetchWithTimeout(`${baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -353,12 +443,12 @@ export class RealLLMAdapter implements LLMPort {
       },
       body: JSON.stringify({
         model: this.config.model,
-        max_tokens: this.config.maxTokens || 1024,
+        max_tokens: this.getRequestMaxTokens(),
         temperature: this.config.temperature,
         system: prompt.system,
         messages: [{ role: 'user', content: prompt.user }],
       }),
-    });
+    }, this.requestTimeoutMs, 'Anthropic API');
 
     if (!response.ok) {
       const error = await response.text();
@@ -380,7 +470,7 @@ export class RealLLMAdapter implements LLMPort {
   private async pingAnthropic(): Promise<boolean> {
     try {
       const baseUrl = this.resolveBaseUrl('https://api.anthropic.com/v1');
-      const response = await fetch(`${baseUrl}/messages`, {
+      const response = await this.fetchWithTimeout(`${baseUrl}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -392,7 +482,7 @@ export class RealLLMAdapter implements LLMPort {
           max_tokens: 1,
           messages: [{ role: 'user', content: 'ping' }],
         }),
-      });
+      }, this.pingTimeoutMs, 'Anthropic API');
       // 400/401 表示认证失败但服务器可达，视为连接正常
       return response.ok || response.status === 400 || response.status === 401;
     } catch {
@@ -403,7 +493,7 @@ export class RealLLMAdapter implements LLMPort {
   // ========== MiniMax 调用 ==========
   private async callMinimax(prompt: PromptBundle): Promise<{ content: string; model: string; tokens: number }> {
     const baseUrl = this.resolveBaseUrl('https://api.minimax.chat/v1');
-    const response = await fetch(`${baseUrl}/text/chatcompletion_v2`, {
+    const response = await this.fetchWithTimeout(`${baseUrl}/text/chatcompletion_v2`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -415,10 +505,10 @@ export class RealLLMAdapter implements LLMPort {
           { role: 'system', content: prompt.system },
           { role: 'user', content: prompt.user },
         ],
-        max_tokens: this.config.maxTokens,
+        max_tokens: this.getRequestMaxTokens(),
         temperature: this.config.temperature,
       }),
-    });
+    }, this.requestTimeoutMs, 'MiniMax API');
 
     if (!response.ok) {
       const error = await response.text();
@@ -440,7 +530,7 @@ export class RealLLMAdapter implements LLMPort {
   private async pingMinimax(): Promise<boolean> {
     try {
       const baseUrl = this.resolveBaseUrl('https://api.minimax.chat/v1');
-      const response = await fetch(`${baseUrl}/text/chatcompletion_v2`, {
+      const response = await this.fetchWithTimeout(`${baseUrl}/text/chatcompletion_v2`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -451,7 +541,7 @@ export class RealLLMAdapter implements LLMPort {
           messages: [{ role: 'user', content: 'ping' }],
           max_tokens: 1,
         }),
-      });
+      }, this.pingTimeoutMs, 'MiniMax API');
       return response.ok;
     } catch {
       return false;
@@ -461,7 +551,7 @@ export class RealLLMAdapter implements LLMPort {
   // ========== Kimi 调用 (月之暗面) ==========
   private async callKimi(prompt: PromptBundle): Promise<{ content: string; model: string; tokens: number }> {
     const baseUrl = this.resolveBaseUrl('https://api.moonshot.cn/v1');
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await this.fetchWithTimeout(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -473,10 +563,10 @@ export class RealLLMAdapter implements LLMPort {
           { role: 'system', content: prompt.system },
           { role: 'user', content: prompt.user },
         ],
-        max_tokens: this.config.maxTokens,
+        max_tokens: this.getRequestMaxTokens(),
         temperature: this.config.temperature,
       }),
-    });
+    }, this.requestTimeoutMs, 'Kimi API');
 
     if (!response.ok) {
       const error = await response.text();
@@ -498,7 +588,7 @@ export class RealLLMAdapter implements LLMPort {
   private async pingKimi(): Promise<boolean> {
     try {
       const baseUrl = this.resolveBaseUrl('https://api.moonshot.cn/v1');
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      const response = await this.fetchWithTimeout(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -509,8 +599,132 @@ export class RealLLMAdapter implements LLMPort {
           messages: [{ role: 'user', content: 'ping' }],
           max_tokens: 1,
         }),
-      });
+      }, this.pingTimeoutMs, 'Kimi API');
       return response.ok || response.status === 400;
+    } catch {
+      return false;
+    }
+  }
+
+  // ========== Azure OpenAI 调用 ==========
+  private async callAzure(prompt: PromptBundle): Promise<{ content: string; model: string; tokens: number }> {
+    // Azure 使用 deployment name 作为 model，baseUrl 格式: https://{resource}.openai.azure.com/openai/deployments/{deployment}
+    const baseUrl = this.resolveBaseUrl('');
+    const deploymentName = this.config.model; // Azure 使用 deployment name
+
+    const response = await this.fetchWithTimeout(`${baseUrl}/chat/completions?api-version=2024-02-15-preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': this.config.apiKey || '',
+      },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user },
+        ],
+        max_tokens: this.getRequestMaxTokens(),
+        temperature: this.config.temperature,
+      }),
+    }, this.requestTimeoutMs, 'Azure OpenAI API');
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Azure OpenAI API 错误: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json() as {
+      choices: Array<{ message?: { content: string } }>;
+      model: string;
+      usage?: { total_tokens: number };
+    };
+    return {
+      content: data.choices[0]?.message?.content || '',
+      model: deploymentName,
+      tokens: data.usage?.total_tokens || 0,
+    };
+  }
+
+  private async pingAzure(): Promise<boolean> {
+    try {
+      const baseUrl = this.resolveBaseUrl('');
+      const response = await this.fetchWithTimeout(`${baseUrl}/models?api-version=2024-02-15-preview`, {
+        method: 'GET',
+        headers: {
+          'api-key': this.config.apiKey || '',
+        },
+      }, this.pingTimeoutMs, 'Azure OpenAI API');
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // ========== Custom (自定义兼容 OpenAI 协议的 API) ==========
+  private async callCustom(prompt: PromptBundle): Promise<{ content: string; model: string; tokens: number }> {
+    // Custom 使用 baseUrl 直接调用，兼容 OpenAI 协议
+    const baseUrl = this.resolveBaseUrl('https://api.openai.com/v1');
+
+    const response = await this.fetchWithTimeout(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages: [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user },
+        ],
+        max_tokens: this.getRequestMaxTokens(),
+        temperature: this.config.temperature,
+      }),
+    }, this.requestTimeoutMs, '自定义 LLM API');
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`自定义 LLM API 错误: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json() as {
+      choices: Array<{ message?: { content: string } }>;
+      model: string;
+      usage?: { total_tokens: number };
+    };
+    return {
+      content: data.choices[0]?.message?.content || '',
+      model: data.model,
+      tokens: data.usage?.total_tokens || 0,
+    };
+  }
+
+  private async pingCustom(): Promise<boolean> {
+    try {
+      const baseUrl = this.resolveBaseUrl('https://api.openai.com/v1');
+      // 尝试调用 models 端点
+      const response = await this.fetchWithTimeout(`${baseUrl}/models`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+        },
+      }, this.pingTimeoutMs, '自定义 LLM API');
+      if (response.ok) return true;
+
+      // 如果 models 端点失败，尝试 chat/completions 端点
+      const chatResponse = await this.fetchWithTimeout(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1,
+        }),
+      }, this.pingTimeoutMs, '自定义 LLM API');
+      return chatResponse.ok || chatResponse.status === 400;
     } catch {
       return false;
     }

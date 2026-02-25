@@ -1,6 +1,5 @@
 import { SimpleIndexAdapter, FileChapterRepo, FileProjectRepo, FileOutlineRepo, FileSnapshotRepo, PromptLoader } from '@zide/infrastructure';
-import { app } from 'electron';
-import * as path from 'path';
+import { getRuntimeBasePath } from './runtimePaths';
 
 /**
  * 服务容器 - 管理所有基础设施层单例
@@ -29,7 +28,7 @@ class ServiceContainer {
   // 获取运行时基础路径
   get runtimeBasePath(): string {
     if (!this._runtimeBasePath) {
-      this._runtimeBasePath = path.join(app.getPath('userData'), 'projects');
+      this._runtimeBasePath = getRuntimeBasePath();
     }
     return this._runtimeBasePath;
   }

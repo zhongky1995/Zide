@@ -12,6 +12,7 @@ export * from './ports/SettingsPort';
 
 // 用例导出
 export * from './usecases/CreateProjectUseCase';
+export * from './usecases/GenerateSettingsUseCase';
 export * from './usecases/OutlineUseCases';
 export * from './usecases/ChapterWorkbenchUseCase';
 export * from './usecases/ContextUseCases';

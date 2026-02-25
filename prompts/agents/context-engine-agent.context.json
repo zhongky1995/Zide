@@ -1,0 +1,79 @@
+{
+  "agent_id": "context-engine-agent",
+  "agent_name": "Context Engine Agent",
+  "workflow_stage": "context-preparation",
+  "stage_goal": "产出稳定可控的上下文包，支撑大项目 AI 生成",
+  "target_users": [
+    "依赖多轮 AI 续写的大项目用户"
+  ],
+  "dependencies": [
+    "ContextUseCases",
+    "SimpleIndexAdapter",
+    "ContextCompressor",
+    "ProjectMetaReader",
+    "IndexPort"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "必填"
+    },
+    {
+      "field": "chapterId",
+      "type": "string",
+      "constraints": "pack/retrieve/index 时必填"
+    },
+    {
+      "field": "operation",
+      "type": "enum",
+      "constraints": "pack|retrieve|index|rebuild|getStats|clear|getProjectContext"
+    },
+    {
+      "field": "query",
+      "type": "string",
+      "constraints": "retrieve 时必填"
+    },
+    {
+      "field": "limit",
+      "type": "number",
+      "constraints": "retrieve 时可选，默认 5"
+    },
+    {
+      "field": "tokenBudget",
+      "type": "number",
+      "constraints": "压缩打包时可选，默认 8000"
+    }
+  ],
+  "output_contract": {
+    "format": "context-pack-or-chunk-list",
+    "required_sections": [
+      "projectContext",
+      "relatedChapters[]",
+      "glossary",
+      "outline",
+      "sources[]"
+    ],
+    "limits": [
+      "relatedChapters 需按相关性截断",
+      "输出需携带来源 chapterId 以支持追溯"
+    ]
+  },
+  "risk_notes": [
+    "索引陈旧导致检索偏差",
+    "上下文过长触发模型截断",
+    "来源追溯缺失导致不可审计"
+  ],
+  "assumptions": [
+    "ContextCompressor 可按策略降级 slice/summary/core",
+    "项目元信息文件可独立读取"
+  ],
+  "complexity": {
+    "scope": 3,
+    "dependency": 3,
+    "risk": 3,
+    "ambiguity": 2,
+    "total": 11,
+    "mode": "standard"
+  }
+}

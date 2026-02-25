@@ -1,14 +1,10 @@
 import { ipcMain } from 'electron';
-import * as path from 'path';
-import { app } from 'electron';
 import { FileMetricsAdapter } from '@zide/infrastructure';
 import { MetricsUseCases } from '@zide/application';
 import { OperationType } from '@zide/domain';
-
-// 获取运行时基础路径
-function getRuntimeBasePath(): string {
-  return path.join(app.getPath('userData'), 'projects');
-}
+import { getRuntimeBasePath } from '../runtimePaths';
+import { ErrorCode } from './errors';
+import { runIpc } from './response';
 
 // 创建用例实例
 function createMetricsUseCase(): MetricsUseCases {
@@ -20,30 +16,23 @@ function createMetricsUseCase(): MetricsUseCases {
 export function registerMetricsHandlers(): void {
   // 获取项目统计
   ipcMain.handle('metrics:project', async (_event, projectId: string) => {
-    try {
+    return runIpc(async () => {
       const useCase = createMetricsUseCase();
-      const metrics = await useCase.getProjectMetrics(projectId);
-      return { success: true, data: metrics };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '获取统计失败'
-      };
-    }
+      return useCase.getProjectMetrics(projectId);
+    }, '获取统计失败', ErrorCode.METRICS_READ_FAILED, {
+      channel: 'metrics:project',
+      args: { projectId },
+    });
   });
 
   // 获取全局统计
   ipcMain.handle('metrics:global', async () => {
-    try {
+    return runIpc(async () => {
       const useCase = createMetricsUseCase();
-      const metrics = await useCase.getGlobalMetrics();
-      return { success: true, data: metrics };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '获取统计失败'
-      };
-    }
+      return useCase.getGlobalMetrics();
+    }, '获取统计失败', ErrorCode.METRICS_READ_FAILED, {
+      channel: 'metrics:global',
+    });
   });
 
   // 记录操作日志
@@ -57,7 +46,7 @@ export function registerMetricsHandlers(): void {
     errorCode?: string;
     errorMessage?: string;
   }) => {
-    try {
+    return runIpc(async () => {
       const useCase = createMetricsUseCase();
       await useCase.logOperation(
         params.projectId,
@@ -69,12 +58,14 @@ export function registerMetricsHandlers(): void {
         params.errorCode,
         params.errorMessage
       );
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '记录日志失败'
-      };
-    }
+      return { logged: true };
+    }, '记录日志失败', ErrorCode.METRICS_WRITE_FAILED, {
+      channel: 'metrics:log',
+      args: {
+        projectId: params.projectId,
+        operationType: params.operationType,
+        status: params.status,
+      },
+    });
   });
 }

@@ -1,0 +1,66 @@
+{
+  "agent_id": "content-orchestrator-agent",
+  "agent_name": "Content Orchestrator Agent",
+  "workflow_stage": "chapter-generation",
+  "stage_goal": "编排章节 AI 生成闭环：上下文→生成→记录→落盘→索引更新",
+  "target_users": [
+    "高频多轮章节生成用户"
+  ],
+  "dependencies": [
+    "GenerateContentUseCase",
+    "LLMPort",
+    "IndexPort",
+    "ChapterRepoPort",
+    "ChapterIntent"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "必填"
+    },
+    {
+      "field": "chapterId",
+      "type": "string",
+      "constraints": "必填，章节必须存在"
+    },
+    {
+      "field": "intent",
+      "type": "enum",
+      "constraints": "continue|expand|rewrite|add_argument|polish|simplify"
+    },
+    {
+      "field": "customPrompt",
+      "type": "string",
+      "constraints": "可选，附加用户要求"
+    }
+  ],
+  "output_contract": {
+    "format": "generation-result-object",
+    "required_sections": [
+      "chapter",
+      "operation{id,intent,input,output,adopted}"
+    ],
+    "limits": [
+      "append/replace 模式必须与 intent 对齐",
+      "每次生成必须记录 operationId"
+    ]
+  },
+  "risk_notes": [
+    "写入模式错误导致内容覆盖",
+    "记录与实际内容不一致影响追溯",
+    "索引未同步造成后续检索失真"
+  ],
+  "assumptions": [
+    "chapterRepo 支持操作记录和最后操作ID持久化",
+    "indexPort 可接受增量索引更新"
+  ],
+  "complexity": {
+    "scope": 3,
+    "dependency": 3,
+    "risk": 3,
+    "ambiguity": 2,
+    "total": 11,
+    "mode": "standard"
+  }
+}

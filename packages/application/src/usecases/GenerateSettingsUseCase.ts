@@ -79,83 +79,157 @@ ${params.idea}
 2. **项目目标** (objectives)：通过这个项目要达成什么目的？解决什么问题？
 3. **限制条件** (constraints)：有什么需要特别注意的限制？
 4. **风格指南** (style)：应该用什么风格来写？
+5. **目标读者** (targetAudience)：本项目最终服务给谁？
+6. **写作语气** (writingTone)：只能从 professional/academic/casual/creative 中选一个
 
 请用 JSON 格式输出：
 {
-  "background": "...",
-  "objectives": "...",
-  "constraints": "...",
-  "style": "...",
-  "targetAudience": "..."
+  "background": "",
+  "objectives": "",
+  "constraints": "",
+  "style": "",
+  "targetAudience": "",
+  "writingTone": ""
 }
 
-只输出 JSON，不要其他内容。`;
+只输出 JSON，不要其他内容。
+禁止使用“...”“…”“待补充”“暂无”等占位符，所有字段都必须是可直接使用的完整内容。`;
   }
 
   /**
    * 从外部prompt文件加载
    */
   private loadExternalPrompt(promptId: string): string | null {
-    try {
-      // 尝试从prompts/global目录加载
-      const promptsDir = path.join(process.cwd(), 'prompts', 'global');
-      const promptPath = path.join(promptsDir, `${promptId}.prompt.md`);
+    const promptFile = `${promptId}.prompt.md`;
+    const candidatePaths = new Set([
+      path.join(process.cwd(), 'prompts', 'global', promptFile),
+      path.join(process.cwd(), '..', 'prompts', 'global', promptFile),
+      path.join(process.cwd(), '..', '..', 'prompts', 'global', promptFile),
+      path.join(__dirname, '..', '..', '..', '..', 'prompts', 'global', promptFile),
+    ]);
 
-      if (fs.existsSync(promptPath)) {
-        const content = fs.readFileSync(promptPath, 'utf-8');
-        // 提取Task部分（跳过metadata）
-        const lines = content.split('\n');
-        const taskLines: string[] = [];
-        let inTask = false;
-
-        for (const line of lines) {
-          if (line.trim() === '## Task' || line.trim() === '## Output Format') {
-            inTask = true;
-            continue;
-          }
-          if (inTask && line.startsWith('## ')) {
-            break;
-          }
-          if (inTask) {
-            taskLines.push(line);
-          }
+    for (const promptPath of candidatePaths) {
+      try {
+        if (!fs.existsSync(promptPath)) {
+          continue;
         }
-
-        return taskLines.join('\n').trim();
+        const content = fs.readFileSync(promptPath, 'utf-8');
+        return this.extractPromptBody(content);
+      } catch (e) {
+        console.warn(`加载外部prompt失败: ${promptPath}`, e);
       }
-    } catch (e) {
-      console.warn(`加载外部prompt失败: ${promptId}`, e);
     }
+
     return null;
   }
 
-  private parseResult(content: string): ProjectSettings {
-    try {
-      // 尝试提取 JSON
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          background: parsed.background || '',
-          objectives: parsed.objectives || '',
-          constraints: parsed.constraints || '',
-          style: parsed.style || '',
-          targetAudience: parsed.targetAudience || '',
-          writingTone: parsed.writingTone || 'professional',
-        };
+  /**
+   * 提取prompt正文（去掉顶部元数据）
+   */
+  private extractPromptBody(content: string): string {
+    const lines = content.split('\n');
+    let start = 0;
+
+    while (start < lines.length) {
+      const trimmed = lines[start].trim();
+      if (
+        trimmed === '' ||
+        trimmed.startsWith('# Prompt:') ||
+        trimmed.startsWith('- prompt_id:') ||
+        trimmed.startsWith('- version:') ||
+        trimmed.startsWith('- created_at:') ||
+        trimmed.startsWith('- description:') ||
+        trimmed.startsWith('- extends:')
+      ) {
+        start += 1;
+        continue;
       }
-    } catch (e) {
-      console.error('解析设定失败:', e);
+      break;
     }
 
-    // 解析失败，返回默认值
-    return {
-      background: '',
-      objectives: '',
-      constraints: '',
-      style: '',
-      targetAudience: '',
-      writingTone: 'professional',
+    return lines.slice(start).join('\n').trim();
+  }
+
+  private parseResult(content: string): ProjectSettings {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('AI 返回的全局设定格式无效：未找到 JSON 对象');
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      throw new Error('AI 返回的全局设定格式无效：JSON 解析失败');
+    }
+
+    const background = this.normalizeText(parsed.background);
+    const objectives = this.normalizeText(parsed.objectives);
+    const constraints = this.normalizeText(parsed.constraints);
+    const style = this.normalizeText(parsed.style);
+    const targetAudienceRaw = this.normalizeText(parsed.targetAudience);
+
+    const invalidRequiredFields = [
+      { key: 'background', label: '背景设定', value: background },
+      { key: 'objectives', label: '目标', value: objectives },
+      { key: 'constraints', label: '约束条件', value: constraints },
+      { key: 'style', label: '风格', value: style },
+    ]
+      .filter((item) => this.isPlaceholderValue(item.value))
+      .map((item) => item.label);
+
+    if (invalidRequiredFields.length > 0) {
+      throw new Error(`AI 返回的全局设定包含占位内容（${invalidRequiredFields.join('、')}），请检查输入后重试`);
+    }
+
+    const result: ProjectSettings = {
+      background,
+      objectives,
+      constraints,
+      style,
+      targetAudience: this.isPlaceholderValue(targetAudienceRaw) ? '通用专业读者' : targetAudienceRaw,
+      writingTone: this.normalizeWritingTone(parsed.writingTone),
     };
+
+    if (!result.background && !result.objectives && !result.constraints && !result.style) {
+      throw new Error('AI 返回的全局设定内容为空，请完善输入后重试');
+    }
+
+    return result;
+  }
+
+  private normalizeText(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private normalizeWritingTone(value: unknown): string {
+    const tone = this.normalizeText(value).toLowerCase();
+    const validTones = new Set(['professional', 'academic', 'casual', 'creative']);
+    return validTones.has(tone) ? tone : 'professional';
+  }
+
+  private isPlaceholderValue(value: string): boolean {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return true;
+    }
+
+    const compact = normalized.replace(/[\s\u3000]/g, '');
+
+    if (/^(\.{2,}|…+|。{2,}|、{2,}|-+|_+)$/u.test(compact)) {
+      return true;
+    }
+
+    if (/^(todo|tbd|na|n\/a|null|none|unknown)$/i.test(compact)) {
+      return true;
+    }
+
+    if (/^(待补充|待完善|待定|未填写|未提供|暂无|无|略)$/u.test(compact)) {
+      return true;
+    }
+
+    // 仅包含符号或标点，视为无效占位内容
+    const contentOnly = compact.replace(/[\p{P}\p{S}]/gu, '');
+    return contentOnly.length === 0;
   }
 }

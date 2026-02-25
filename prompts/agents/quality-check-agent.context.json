@@ -1,0 +1,63 @@
+{
+  "agent_id": "quality-check-agent",
+  "agent_name": "Quality Check Agent",
+  "workflow_stage": "quality-gate",
+  "stage_goal": "输出结构化问题清单并支持问题状态流转",
+  "target_users": [
+    "交付前需要质量门禁的用户和测试人员"
+  ],
+  "dependencies": [
+    "CheckUseCases",
+    "RuleEnginePort",
+    "SimpleRuleEngine"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "必填"
+    },
+    {
+      "field": "checkType",
+      "type": "enum",
+      "constraints": "full|missingChapters|termConsistency|duplicateContent|completion|outlineDrift"
+    },
+    {
+      "field": "threshold",
+      "type": "number",
+      "constraints": "completion 检查可选"
+    },
+    {
+      "field": "issue",
+      "type": "check-issue-object",
+      "constraints": "resolve/ignore 时必填"
+    }
+  ],
+  "output_contract": {
+    "format": "check-result-or-issues",
+    "required_sections": [
+      "issues[] with type/severity/status",
+      "checkedAt",
+      "aggregated counters for full check"
+    ],
+    "limits": [
+      "问题状态只能在 open/resolved/ignored 中流转",
+      "结果必须可追溯到 projectId"
+    ]
+  },
+  "risk_notes": [
+    "误报/漏报影响交付判断",
+    "状态流转错误导致治理指标失真"
+  ],
+  "assumptions": [
+    "outlineDrift 当前可能为占位检查，允许结果为空"
+  ],
+  "complexity": {
+    "scope": 3,
+    "dependency": 2,
+    "risk": 3,
+    "ambiguity": 1,
+    "total": 9,
+    "mode": "standard"
+  }
+}

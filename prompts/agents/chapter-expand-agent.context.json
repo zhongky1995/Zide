@@ -2,37 +2,54 @@
   "agent_id": "chapter-expand-agent",
   "agent_name": "Chapter Expand Agent",
   "workflow_stage": "chapter-generation",
-  "stage_goal": "对章节薄弱点做追加式扩写，提升信息密度",
+  "stage_goal": "在追加模式下增厚信息密度并补齐细节",
   "target_users": [
-    "方案与报告写作者",
-    "需要快速增厚初稿的用户"
+    "需要将草稿快速扩展为可交付内容的用户"
   ],
   "dependencies": [
-    "GenerateContentUseCase",
-    "SimpleIndexAdapter.packContext",
-    "LLMPort.generate"
+    "RealLLMAdapter.getSystemPrompt",
+    "ChapterIntent.EXPAND",
+    "GenerateContentUseCase append mode"
   ],
   "input_contract": [
-    { "field": "context.projectContext", "type": "string", "constraints": "可空" },
-    { "field": "context.outline", "type": "string", "constraints": "可空" },
-    { "field": "context.glossary", "type": "string", "constraints": "可空" },
-    { "field": "chapter.title", "type": "string", "constraints": "必填" },
-    { "field": "chapter.content", "type": "string", "constraints": "建议非空" },
-    { "field": "chapter.target", "type": "string", "constraints": "可空" },
-    { "field": "intent", "type": "enum", "constraints": "必须为 expand" }
+    {
+      "field": "chapter.content",
+      "type": "string",
+      "constraints": "建议非空"
+    },
+    {
+      "field": "chapter.target",
+      "type": "string",
+      "constraints": "可选"
+    },
+    {
+      "field": "context.outline",
+      "type": "string",
+      "constraints": "可选"
+    },
+    {
+      "field": "intent",
+      "type": "enum",
+      "constraints": "必须为 expand"
+    }
   ],
   "output_contract": {
     "format": "markdown-body",
-    "required_sections": ["append_content_only"],
-    "limits": ["建议<=1500中文字符", "禁止整章返回", "禁止编造具体来源"]
+    "required_sections": [
+      "append_content_only"
+    ],
+    "limits": [
+      "建议 500-1500 字",
+      "禁止整章重写",
+      "禁止重复原文堆砌"
+    ]
   },
   "risk_notes": [
-    "误把扩写做成重写会破坏追加链路",
-    "无边界扩写会导致啰嗦和跑题"
+    "扩写过度导致啰嗦",
+    "主题漂移影响章节一致性"
   ],
   "assumptions": [
-    "上层会将输出追加到原章节",
-    "上下文包已按相关性排序"
+    "append 输出由上层拼接并保存"
   ],
   "complexity": {
     "scope": 2,

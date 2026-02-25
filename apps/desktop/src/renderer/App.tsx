@@ -1,6 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
-import { projectApi, outlineApi, chapterApi, aiApi, snapshotApi, metricsApi, checkApi, exportApi } from './services/api';
+import {
+  projectApi,
+  outlineApi,
+  chapterApi,
+  aiApi,
+  snapshotApi,
+  metricsApi,
+  checkApi,
+  exportApi,
+  API_ERROR_EVENT,
+  type ApiErrorDetail,
+} from './services/api';
 import type { Project, ChapterSummary, Chapter, Outline, ProjectMetrics } from './types/api';
 
 // ============ LLM配置类型 ============
@@ -84,7 +95,7 @@ function ProjectList({ addToast }: PageProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ name: '', type: 'standard', description: '', readers: '', scale: '' });
+  const [formData, setFormData] = useState({ name: '', type: 'proposal', description: '', readers: '', scale: '', idea: '' });
   const navigate = useNavigate();
 
   // 改进：添加设置入口
@@ -104,7 +115,7 @@ function ProjectList({ addToast }: PageProps) {
   }, [loadProjects]);
 
   const handleCreate = async () => {
-    if (!formData.name.trim()) return;
+    if (!formData.name.trim() || !formData.idea.trim()) return;
     try {
       const project = await projectApi.create({
         name: formData.name,
@@ -112,11 +123,14 @@ function ProjectList({ addToast }: PageProps) {
         description: formData.description,
         readers: formData.readers,
         scale: formData.scale,
+        idea: formData.idea,
       });
       if (project) {
         setShowModal(false);
-        setFormData({ name: '', type: 'standard', description: '', readers: '', scale: '' });
+        setFormData({ name: '', type: 'proposal', description: '', readers: '', scale: '', idea: '' });
         navigate(`/project/${project.id}`);
+      } else {
+        addToast?.('创建失败：AI 设定生成未成功，请检查模型配置后重试。', 'error');
       }
     } catch (error) {
       console.error('创建项目失败:', error);
@@ -215,6 +229,15 @@ function ProjectList({ addToast }: PageProps) {
             />
           </div>
           <div className="form-group">
+            <label className="form-label">你的想法 *</label>
+            <textarea
+              value={formData.idea}
+              onChange={e => setFormData({ ...formData, idea: e.target.value })}
+              placeholder="描述你想要写的内容、核心观点、写作目标等，AI会根据这些生成全局设定"
+              rows={4}
+            />
+          </div>
+          <div className="form-group">
             <label className="form-label">项目描述</label>
             <textarea
               value={formData.description}
@@ -225,7 +248,7 @@ function ProjectList({ addToast }: PageProps) {
           </div>
           <div className="modal-footer">
             <button className="btn-secondary" onClick={() => setShowModal(false)}>取消</button>
-            <button className="btn-primary" onClick={handleCreate} disabled={!formData.name.trim()}>创建</button>
+            <button className="btn-primary" onClick={handleCreate} disabled={!formData.name.trim() || !formData.idea.trim()}>创建</button>
           </div>
         </Modal>
       )}
@@ -263,40 +286,55 @@ function ProjectWorkspace({ addToast }: PageProps) {
     loadData();
   }, [loadData]);
 
+  // 加载AI策略列表
+  useEffect(() => {
+    const loadStrategies = async () => {
+      const strategyList = await aiApi.listStrategies();
+      setStrategies(strategyList || []);
+      const current = await aiApi.getStrategy();
+      if (current) {
+        setActiveStrategy(current.id);
+      }
+    };
+    loadStrategies();
+  }, []);
+
   // 大纲相关状态
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('standard');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [generating, setGenerating] = useState(false);
 
+  // 项目设定相关状态
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [projectSettings, setProjectSettings] = useState({
+    background: '',
+    goals: '',
+    constraints: '',
+    style: '',
+  });
+
+  // AI策略相关状态
+  const [strategies, setStrategies] = useState<{ id: string; name: string; description: string }[]>([]);
+  const [activeStrategy, setActiveStrategy] = useState<string>('');
+
+  // 生成大纲 - 由 AI 自主判断章节结构与数量
   const handleGenerateOutline = async () => {
     if (!projectId) return;
-    setShowTemplateModal(true);
-  };
-
-  const handleConfirmGenerate = async (template: string, chapterCount?: number) => {
-    if (!projectId) return;
     setGenerating(true);
-    console.log('[handleConfirmGenerate] projectId:', projectId, 'template:', template, 'chapterCount:', chapterCount);
     try {
-      // 直接调用底层 API
-      console.log('[handleConfirmGenerate] 调用 api.generateOutline...');
-      const rawResult = await window.zide.generateOutline({ projectId, template, chapterCount });
-      console.log('[handleConfirmGenerate] 原始结果:', rawResult);
-
-      if (rawResult?.success && rawResult?.data) {
-        const outline = rawResult.data;
-        console.log('[handleConfirmGenerate] 大纲数据:', outline);
+      const generatedOutline = await outlineApi.generate(projectId);
+      if (generatedOutline) {
+        const outline = generatedOutline;
         setOutline(outline);
+        // 大纲生成会创建章节桩文件，刷新一次可让章节工作台立即可用
+        await loadData();
+        setShowTemplateModal(false);
         addToast?.('大纲生成成功，共' + (outline.chapters?.length || 0) + '章', 'success');
       } else {
-        console.error('[handleConfirmGenerate] 失败:', rawResult?.error);
-        addToast?.('生成大纲失败: ' + (rawResult?.error || '未知错误'), 'error');
+        addToast?.('AI 大纲生成失败，请检查模型配置与网络后重试。', 'error');
       }
     } catch (error) {
-      console.error('[handleConfirmGenerate] 异常:', error);
       addToast?.('生成大纲失败: ' + (error as Error).message, 'error');
     } finally {
-      setShowTemplateModal(false);
       setGenerating(false);
     }
   };
@@ -348,6 +386,30 @@ function ProjectWorkspace({ addToast }: PageProps) {
           <p className="text-gray text-sm mt-2">{project.description}</p>
         </div>
         <div className="flex gap-2">
+          <button className="btn-secondary" onClick={() => {
+            // 加载项目设定（从 meta 字段读取）
+            setProjectSettings({
+              background: project.meta?.background || '',
+              goals: project.meta?.objectives || '',
+              constraints: project.meta?.constraints || '',
+              style: project.meta?.styleGuide || '',
+            });
+            setShowSettingsModal(true);
+          }}>全局设定</button>
+          <select
+            value={activeStrategy}
+            onChange={async (e) => {
+              const strategyId = e.target.value;
+              setActiveStrategy(strategyId);
+              await aiApi.setStrategy(strategyId);
+              addToast?.('AI策略已切换', 'success');
+            }}
+            style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid var(--gray-300)' }}
+          >
+            {strategies.map(strategy => (
+              <option key={strategy.id} value={strategy.id}>{strategy.name}</option>
+            ))}
+          </select>
           <button className="btn-secondary" onClick={() => navigate('/')}>返回列表</button>
         </div>
       </div>
@@ -390,7 +452,7 @@ function ProjectWorkspace({ addToast }: PageProps) {
           <div className="flex justify-between items-center mb-4">
             <h3>大纲管理</h3>
             <div className="flex gap-2">
-              <button className="btn-primary" onClick={handleGenerateOutline}>
+              <button className="btn-primary" onClick={() => setShowTemplateModal(true)}>
                 {outline?.chapters?.length ? '重新生成' : '生成大纲'}
               </button>
               {outline && outline.status === 'draft' && (
@@ -440,7 +502,7 @@ function ProjectWorkspace({ addToast }: PageProps) {
           ) : (
             <div className="empty-state">
               <p>还没有大纲，点击"生成大纲"开始创建</p>
-              <p className="text-gray text-sm mt-2">选择模板快速生成章节大纲，或手动添加章节</p>
+              <p className="text-gray text-sm mt-2">AI 会根据全局设定自动规划章节结构</p>
             </div>
           )}
         </div>
@@ -451,39 +513,92 @@ function ProjectWorkspace({ addToast }: PageProps) {
         <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>选择大纲模板</h3>
+              <h3>AI 生成大纲</h3>
               <button className="btn-close" onClick={() => setShowTemplateModal(false)}>×</button>
             </div>
             <div className="modal-body">
-              <div className="template-grid">
-                <div
-                  className={`template-card ${selectedTemplate === 'standard' ? 'selected' : ''}`}
-                  onClick={() => setSelectedTemplate('standard')}
-                >
-                  <h4>标准模板</h4>
-                  <p className="text-sm text-gray">项目背景 → 问题分析 → 解决方案 → 实施计划 → 总结与展望</p>
-                </div>
-                <div
-                  className={`template-card ${selectedTemplate === 'research' ? 'selected' : ''}`}
-                  onClick={() => setSelectedTemplate('research')}
-                >
-                  <h4>研究报告</h4>
-                  <p className="text-sm text-gray">摘要 → 引言 → 研究方法 → 结果 → 讨论 → 结论</p>
-                </div>
-                <div
-                  className={`template-card ${selectedTemplate === 'novel' ? 'selected' : ''}`}
-                  onClick={() => setSelectedTemplate('novel')}
-                >
-                  <h4>小说模板</h4>
-                  <p className="text-sm text-gray">楔子 → 起因 → 冲突 → 高潮 → 结局 → 尾声</p>
-                </div>
-              </div>
+              <p className="mb-4">AI 将根据项目全局设定自动生成适合的大纲结构。</p>
+              <p className="text-gray text-sm">
+                不需要手动指定章节数量，AI 会按你的设定自行判断结构与篇幅。
+              </p>
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowTemplateModal(false)}>取消</button>
-              <button className="btn-primary" onClick={() => handleConfirmGenerate(selectedTemplate)} disabled={generating}>
-                {generating ? '生成中...' : '生成大纲'}
+              <button
+                className="btn-primary"
+                onClick={handleGenerateOutline}
+                disabled={generating}
+              >
+                {generating ? 'AI 生成中...' : 'AI 生成大纲'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 项目全局设定弹窗 */}
+      {showSettingsModal && (
+        <div className="modal-overlay" onClick={() => setShowSettingsModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>项目全局设定</h3>
+              <button className="btn-close" onClick={() => setShowSettingsModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">背景设定</label>
+                <textarea
+                  value={projectSettings.background}
+                  onChange={e => setProjectSettings({ ...projectSettings, background: e.target.value })}
+                  placeholder="输入项目背景、背景故事、设定说明等"
+                  rows={3}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">目标</label>
+                <textarea
+                  value={projectSettings.goals}
+                  onChange={e => setProjectSettings({ ...projectSettings, goals: e.target.value })}
+                  placeholder="输入项目目标、核心论点、情节走向等"
+                  rows={3}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">约束条件</label>
+                <textarea
+                  value={projectSettings.constraints}
+                  onChange={e => setProjectSettings({ ...projectSettings, constraints: e.target.value })}
+                  placeholder="输入约束条件、限制因素、注意事项等"
+                  rows={3}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">风格</label>
+                <textarea
+                  value={projectSettings.style}
+                  onChange={e => setProjectSettings({ ...projectSettings, style: e.target.value })}
+                  placeholder="输入文风要求、语言风格、表达方式等"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowSettingsModal(false)}>取消</button>
+              <button className="btn-primary" onClick={async () => {
+                if (project) {
+                  // 转换为 meta 格式
+                  const meta = {
+                    background: projectSettings.background,
+                    objectives: projectSettings.goals,
+                    constraints: projectSettings.constraints,
+                    styleGuide: projectSettings.style,
+                  };
+                  await projectApi.update(project.id, { meta });
+                  setProject({ ...project, meta });
+                  addToast?.('设定已保存', 'success');
+                  setShowSettingsModal(false);
+                }
+              }}>保存设定</button>
             </div>
           </div>
         </div>
@@ -625,6 +740,8 @@ function ChapterEditor({ addToast }: PageProps) {
       if (result) {
         setContent(result.chapter.content);
         setChapter(result.chapter);
+      } else {
+        addToast?.('AI 调用失败，请先检查模型配置与网络连接。', 'error');
       }
     } catch (error) {
       console.error('AI 生成失败:', error);
@@ -738,6 +855,10 @@ function SettingsPage({ addToast }: PageProps) {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const navigate = useNavigate();
 
+  // AI策略相关状态
+  const [strategies, setStrategies] = useState<{ id: string; name: string; description: string }[]>([]);
+  const [activeStrategy, setActiveStrategy] = useState<string>('');
+
   const loadConfig = useCallback(async () => {
     if (window.zide?.aiGetConfig) {
       const result = await window.zide.aiGetConfig();
@@ -750,6 +871,19 @@ function SettingsPage({ addToast }: PageProps) {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // 加载AI策略列表
+  useEffect(() => {
+    const loadStrategies = async () => {
+      const strategyList = await aiApi.listStrategies();
+      setStrategies(strategyList || []);
+      const current = await aiApi.getStrategy();
+      if (current) {
+        setActiveStrategy(current.id);
+      }
+    };
+    loadStrategies();
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -894,6 +1028,50 @@ function SettingsPage({ addToast }: PageProps) {
       </div>
 
       <div className="card mt-4">
+        <h3 className="mb-4">AI 策略管理</h3>
+        <p className="text-gray text-sm mb-4">选择不同的 AI 策略以优化内容生成效果</p>
+
+        <div className="form-group">
+          <label className="form-label">当前策略</label>
+          <select
+            value={activeStrategy}
+            onChange={async (e) => {
+              const strategyId = e.target.value;
+              setActiveStrategy(strategyId);
+              await aiApi.setStrategy(strategyId);
+              addToast?.('AI策略已切换', 'success');
+            }}
+          >
+            {strategies.map(strategy => (
+              <option key={strategy.id} value={strategy.id}>{strategy.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-4">
+          <h4 className="text-sm font-medium mb-2">可用策略</h4>
+          <div className="strategy-list">
+            {strategies.map(strategy => (
+              <div
+                key={strategy.id}
+                className={`strategy-item ${strategy.id === activeStrategy ? 'active' : ''}`}
+                style={{
+                  padding: '12px',
+                  border: '1px solid var(--gray-200)',
+                  borderRadius: '4px',
+                  marginBottom: '8px',
+                  background: strategy.id === activeStrategy ? 'var(--primary-light, #e0f2fe)' : 'transparent',
+                }}
+              >
+                <div className="font-medium">{strategy.name}</div>
+                <div className="text-gray text-sm">{strategy.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="card mt-4">
         <h3 className="mb-4">关于</h3>
         <p className="text-gray">Zide - AI 驱动的内容创作平台</p>
         <p className="text-gray text-sm mt-2">版本 1.0.0</p>
@@ -943,6 +1121,7 @@ function CheckPage({ projectId, addToast }: { projectId?: string; addToast?: (me
       term_conflict: '术语冲突',
       duplicate_content: '重复内容',
       low_completion: '完成度低',
+      completion_low: '完成度低',
       outline_drift: '大纲偏离',
     };
     return map[type] || type;
@@ -1002,7 +1181,7 @@ function ExportPage({ projectId, addToast }: { projectId?: string; addToast?: (m
   const [exporting, setExporting] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [preview, setPreview] = useState('');
-  const [format, setFormat] = useState<'markdown' | 'html' | 'pdf'>('markdown');
+  const [format, setFormat] = useState<'md' | 'html' | 'pdf'>('md');
 
   const loadHistory = async () => {
     if (!pid) return;
@@ -1045,7 +1224,7 @@ function ExportPage({ projectId, addToast }: { projectId?: string; addToast?: (m
   };
 
   const handleOpenDir = async () => {
-    await exportApi.openDir();
+    await exportApi.openDir(pid);
   };
 
   return (
@@ -1056,7 +1235,7 @@ function ExportPage({ projectId, addToast }: { projectId?: string; addToast?: (m
           <div className="form-group">
             <label className="form-label">导出格式</label>
             <select value={format} onChange={e => setFormat(e.target.value as any)}>
-              <option value="markdown">Markdown (.md)</option>
+              <option value="md">Markdown (.md)</option>
               <option value="html">HTML (.html)</option>
               <option value="pdf">PDF (.pdf)</option>
             </select>
@@ -1112,6 +1291,38 @@ function ExportPage({ projectId, addToast }: { projectId?: string; addToast?: (m
 
 function App() {
   const { toasts, addToast, removeToast } = useToast();
+  const lastErrorRef = useRef<{ message: string; ts: number }>({ message: '', ts: 0 });
+
+  useEffect(() => {
+    const onApiError = (event: Event) => {
+      const detail = (event as CustomEvent<ApiErrorDetail>).detail;
+      if (!detail) return;
+
+      const now = Date.now();
+      // 同一错误在极短时间内只提示一次，避免并发请求导致刷屏
+      if (
+        lastErrorRef.current.message === detail.message
+        && now - lastErrorRef.current.ts < 1500
+      ) {
+        return;
+      }
+
+      lastErrorRef.current = { message: detail.message, ts: now };
+
+      const categoryLabel = detail.category === 'config'
+        ? '配置错误'
+        : detail.category === 'data'
+          ? '数据错误'
+          : '系统错误';
+
+      addToast(`${categoryLabel}：${detail.message}`, 'error');
+    };
+
+    window.addEventListener(API_ERROR_EVENT, onApiError as EventListener);
+    return () => {
+      window.removeEventListener(API_ERROR_EVENT, onApiError as EventListener);
+    };
+  }, [addToast]);
 
   return (
     <div className="app">

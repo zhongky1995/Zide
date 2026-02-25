@@ -58,6 +58,8 @@ export interface Project extends ProjectBase {
   chapterIds: string[];     // 章节 ID 列表
   glossaryCount: number;   // 术语数量
   outlineStatus: 'none' | 'draft' | 'confirmed'; // 大纲状态
+  writingTone?: WritingTone; // 写作语气（项目级设置）
+  targetAudience?: string;   // 目标受众（项目级设置）
 }
 
 // 项目创建参数
@@ -77,4 +79,6 @@ export interface UpdateProjectParams {
   targetScale?: string;
   status?: ProjectStatus;
   meta?: Partial<ProjectMeta>;
+  writingTone?: WritingTone;
+  targetAudience?: string;
 }

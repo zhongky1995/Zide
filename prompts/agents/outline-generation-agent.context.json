@@ -1,0 +1,68 @@
+{
+  "agent_id": "outline-generation-agent",
+  "agent_name": "Outline Generation Agent",
+  "workflow_stage": "outline-planning",
+  "stage_goal": "生成可编辑的大纲草稿并建立章节骨架",
+  "target_users": [
+    "需要快速建立章节结构的长文作者"
+  ],
+  "dependencies": [
+    "GenerateOutlineUseCase",
+    "ProjectRepoPort",
+    "OutlineRepoPort",
+    "LLMPort"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "必填，项目需存在"
+    },
+    {
+      "field": "template",
+      "type": "enum",
+      "constraints": "standard|research|novel|custom，可选"
+    },
+    {
+      "field": "chapterCount",
+      "type": "number",
+      "constraints": "可选，建议 3-20"
+    },
+    {
+      "field": "customChapters",
+      "type": "string[]",
+      "constraints": "可选，优先于模板"
+    }
+  ],
+  "output_contract": {
+    "format": "outline-object",
+    "required_sections": [
+      "projectId",
+      "chapters[]",
+      "status:draft",
+      "version",
+      "timestamps"
+    ],
+    "limits": [
+      "章节编号必须连续",
+      "AI 返回异常时必须走模板回退"
+    ]
+  },
+  "risk_notes": [
+    "AI 结构化输出不可解析",
+    "章节标题跑题导致后续写作偏航",
+    "版本状态与项目状态不一致"
+  ],
+  "assumptions": [
+    "LLM 不保证严格 JSON，需要正则抽取",
+    "模板库可覆盖常见写作类型"
+  ],
+  "complexity": {
+    "scope": 3,
+    "dependency": 2,
+    "risk": 2,
+    "ambiguity": 2,
+    "total": 9,
+    "mode": "standard"
+  }
+}

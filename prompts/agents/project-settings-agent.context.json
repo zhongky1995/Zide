@@ -1,0 +1,71 @@
+{
+  "agent_id": "project-settings-agent",
+  "agent_name": "Project Settings Agent",
+  "workflow_stage": "project-config",
+  "stage_goal": "管理项目元信息与上下文导出，保障配置可追踪",
+  "target_users": [
+    "需要持续调整项目约束和受众的用户"
+  ],
+  "dependencies": [
+    "ProjectSettingsUseCase",
+    "ProjectRepoPort",
+    "SettingsPort"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "必填，必须存在"
+    },
+    {
+      "field": "operation",
+      "type": "enum",
+      "constraints": "getSettings|updateMeta|updateWritingTone|updateTargetAudience|exportForContext"
+    },
+    {
+      "field": "meta",
+      "type": "object",
+      "constraints": "updateMeta 时可选字段 patch"
+    },
+    {
+      "field": "tone",
+      "type": "enum",
+      "constraints": "updateWritingTone 时必填"
+    },
+    {
+      "field": "audience",
+      "type": "string",
+      "constraints": "updateTargetAudience 时必填"
+    }
+  ],
+  "output_contract": {
+    "format": "settings-object",
+    "required_sections": [
+      "projectId",
+      "meta",
+      "writingTone",
+      "targetAudience",
+      "timestamps"
+    ],
+    "limits": [
+      "禁止跨项目读写",
+      "导出上下文字段命名需稳定"
+    ]
+  },
+  "risk_notes": [
+    "配置覆盖导致写作约束漂移",
+    "空值写入破坏上下文完整性"
+  ],
+  "assumptions": [
+    "术语表当前为占位实现，可能返回空数组",
+    "meta 合并策略由 usecase 控制"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 2,
+    "ambiguity": 2,
+    "total": 8,
+    "mode": "lean"
+  }
+}

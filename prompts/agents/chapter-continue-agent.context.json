@@ -2,39 +2,69 @@
   "agent_id": "chapter-continue-agent",
   "agent_name": "Chapter Continue Agent",
   "workflow_stage": "chapter-generation",
-  "stage_goal": "追加式续写当前章节，保证连贯并推进章节目标",
+  "stage_goal": "以追加模式稳定续写当前章节并推进目标点",
   "target_users": [
-    "咨询/售前/产品/运营写作者",
-    "研究与报告写作者",
-    "长篇创作者"
+    "按章节连续推进的写作者"
   ],
   "dependencies": [
-    "GenerateContentUseCase",
-    "SimpleIndexAdapter.packContext",
-    "LLMPort.generate"
+    "RealLLMAdapter.getSystemPrompt",
+    "ChapterIntent.CONTINUE",
+    "GenerateContentUseCase append mode"
   ],
   "input_contract": [
-    { "field": "context.projectContext", "type": "string", "constraints": "可空，建议含项目目标" },
-    { "field": "context.outline", "type": "string", "constraints": "可空，建议含章节结构" },
-    { "field": "context.glossary", "type": "string", "constraints": "可空，术语一致性约束" },
-    { "field": "chapter.title", "type": "string", "constraints": "必填，非空" },
-    { "field": "chapter.content", "type": "string", "constraints": "可空，作为接续基线" },
-    { "field": "chapter.target", "type": "string", "constraints": "可空，优先推进目标" },
-    { "field": "intent", "type": "enum", "constraints": "必须为 continue" }
+    {
+      "field": "context.projectContext",
+      "type": "string",
+      "constraints": "可选，项目背景与目标"
+    },
+    {
+      "field": "context.outline",
+      "type": "string",
+      "constraints": "可选，章节结构约束"
+    },
+    {
+      "field": "context.glossary",
+      "type": "string",
+      "constraints": "可选，术语一致性"
+    },
+    {
+      "field": "chapter.title",
+      "type": "string",
+      "constraints": "必填"
+    },
+    {
+      "field": "chapter.content",
+      "type": "string",
+      "constraints": "可空，续写基线"
+    },
+    {
+      "field": "chapter.target",
+      "type": "string",
+      "constraints": "可选"
+    },
+    {
+      "field": "intent",
+      "type": "enum",
+      "constraints": "必须为 continue"
+    }
   ],
   "output_contract": {
     "format": "markdown-body",
-    "required_sections": ["append_content_only"],
-    "limits": ["建议<=1200中文字符", "禁止解释性前缀", "禁止伪造事实"]
+    "required_sections": [
+      "append_content_only"
+    ],
+    "limits": [
+      "建议 400-1200 字",
+      "禁止解释性前缀",
+      "禁止整章返回"
+    ]
   },
   "risk_notes": [
-    "接续失败会导致上下文割裂",
-    "误输出整章会与追加模式冲突",
-    "事实幻觉会降低可交付性"
+    "接续断层导致阅读割裂",
+    "误用 replace 破坏追加链路"
   ],
   "assumptions": [
-    "章节状态由业务层维护，不在本代理中处理",
-    "追加模式由上层在保存阶段自动拼接"
+    "上层会自动执行 append 持久化"
   ],
   "complexity": {
     "scope": 2,

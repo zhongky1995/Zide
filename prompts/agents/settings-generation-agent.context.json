@@ -1,0 +1,72 @@
+{
+  "agent_id": "settings-generation-agent",
+  "agent_name": "Settings Generation Agent",
+  "workflow_stage": "project-init",
+  "stage_goal": "基于用户想法生成结构化全局设定 JSON",
+  "target_users": [
+    "需要从想法快速起稿的用户"
+  ],
+  "dependencies": [
+    "GenerateSettingsUseCase",
+    "LLMPort.generate",
+    "prompts/global/generate-settings.prompt.md"
+  ],
+  "input_contract": [
+    {
+      "field": "name",
+      "type": "string",
+      "constraints": "必填，项目名称"
+    },
+    {
+      "field": "type",
+      "type": "string",
+      "constraints": "必填，项目类型"
+    },
+    {
+      "field": "idea",
+      "type": "string",
+      "constraints": "必填，用户核心想法"
+    },
+    {
+      "field": "targetReaders",
+      "type": "string",
+      "constraints": "可选"
+    },
+    {
+      "field": "targetScale",
+      "type": "string",
+      "constraints": "可选"
+    }
+  ],
+  "output_contract": {
+    "format": "json-object",
+    "required_sections": [
+      "background",
+      "objectives",
+      "constraints",
+      "style",
+      "targetAudience",
+      "writingTone"
+    ],
+    "limits": [
+      "只输出 JSON 可解析对象",
+      "字段缺失时返回空字符串，不输出解释文本"
+    ]
+  },
+  "risk_notes": [
+    "JSON 解析失败导致设定丢失",
+    "字段漂移导致 meta 更新失败"
+  ],
+  "assumptions": [
+    "LLM 输出可能包含噪音，需要正则抽取 JSON",
+    "失败时允许回退到空设定"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 2,
+    "ambiguity": 2,
+    "total": 8,
+    "mode": "lean"
+  }
+}

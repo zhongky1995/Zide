@@ -44,6 +44,11 @@ declare global {
       aiPing: () => Promise<any>;
       aiGetConfig: () => Promise<any>;
       aiUpdateConfig: (config: any) => Promise<any>;
+      aiGetStrategy: () => Promise<any>;
+      aiListStrategies: () => Promise<any>;
+      aiSetStrategy: (strategyId: string) => Promise<any>;
+      aiGetIntentConfig: (intent: string) => Promise<any>;
+      aiChat: (projectId: string, message: string, chapterId?: string) => Promise<any>;
 
       // 上下文操作
       packContext: (projectId: string, chapterId: string) => Promise<any>;
@@ -81,7 +86,7 @@ declare global {
       exportPreview: (projectId: string, format: string) => Promise<any>;
       getExportHistory: (projectId: string) => Promise<any>;
       deleteExport: (filePath: string) => Promise<any>;
-      openExportDir: () => Promise<any>;
+      openExportDir: (projectId?: string) => Promise<any>;
 
       // 统计操作
       getProjectMetrics: (projectId: string) => Promise<any>;
@@ -93,15 +98,81 @@ declare global {
 
 const api = window.zide;
 
+export const API_ERROR_EVENT = 'zide:api-error';
+
+export type ApiErrorCategory = 'config' | 'data' | 'system';
+
+export interface ApiErrorDetail {
+  message: string;
+  code?: string;
+  category: ApiErrorCategory;
+  details?: Record<string, unknown>;
+}
+
+function classifyApiError(code?: string, message?: string): ApiErrorCategory {
+  if (!code) {
+    if (typeof message === 'string' && /api key|配置|provider|model/i.test(message)) {
+      return 'config';
+    }
+    return 'system';
+  }
+
+  const configCodes = new Set([
+    'INVALID_PARAMS',
+    'AI_CONFIG_FAILED',
+    'AI_CONFIG_INVALID',
+    'AI_PROVIDER_ERROR',
+  ]);
+
+  const dataCodes = new Set([
+    'NOT_FOUND',
+    'PROJECT_NOT_FOUND',
+    'PROJECT_ALREADY_EXISTS',
+    'OUTLINE_NOT_FOUND',
+    'CHAPTER_NOT_FOUND',
+    'SNAPSHOT_NOT_FOUND',
+  ]);
+
+  if (configCodes.has(code)) return 'config';
+  if (dataCodes.has(code)) return 'data';
+  return 'system';
+}
+
+function emitApiError(response: any, fallbackMessage: string): void {
+  const message = typeof response?.error === 'string' && response.error.trim()
+    ? response.error
+    : fallbackMessage;
+  const code = typeof response?.code === 'string' ? response.code : undefined;
+  const details = response?.details && typeof response.details === 'object' && !Array.isArray(response.details)
+    ? response.details as Record<string, unknown>
+    : undefined;
+
+  const detail: ApiErrorDetail = {
+    message,
+    code,
+    category: classifyApiError(code, message),
+    details,
+  };
+
+  console.error('[API Error]', detail);
+  window.dispatchEvent(new CustomEvent<ApiErrorDetail>(API_ERROR_EVENT, { detail }));
+}
+
 // 辅助函数：从响应中提取数据
-function extractData<T>(response: any): T | null {
+function extractData<T>(response: any, fallbackMessage = '请求失败'): T | null {
   if (response?.success) {
     return response.data;
   }
-  console.error('API Error:', response?.error);
-  // 显示错误给用户
-  alert('API Error: ' + (response?.error || 'Unknown error'));
+  emitApiError(response, fallbackMessage);
   return null;
+}
+
+function extractSuccess(response: any, fallbackMessage = '请求失败'): boolean {
+  if (response?.success) {
+    return true;
+  }
+  emitApiError(response, fallbackMessage);
+  return false;
 }
 
 // 项目API
@@ -128,7 +199,7 @@ export const projectApi = {
 
   async delete(id: string): Promise<boolean> {
     const result = await api.deleteProject(id);
-    return result?.success || false;
+    return extractSuccess(result, '删除项目失败');
   },
 };
 
@@ -192,7 +263,7 @@ export const chapterApi = {
 export const aiApi = {
   async generate(projectId: string, chapterId: string, intent: string, customPrompt?: string) {
     const result = await api.aiGenerate(projectId, chapterId, intent, customPrompt);
-    return result?.success ? result.data : null;
+    return extractData(result, 'AI 生成失败');
   },
 
   async getOperationHistory(projectId: string, chapterId: string): Promise<AIOperation[]> {
@@ -202,7 +273,32 @@ export const aiApi = {
 
   async adoptOperation(projectId: string, chapterId: string, operationId: string): Promise<boolean> {
     const result = await api.adoptOperation(projectId, chapterId, operationId);
-    return result?.success || false;
+    return extractSuccess(result, '采纳操作失败');
+  },
+
+  async getStrategy(): Promise<any> {
+    const result = await api.aiGetStrategy();
+    return extractData(result, '获取策略失败');
+  },
+
+  async listStrategies(): Promise<any[]> {
+    const result = await api.aiListStrategies();
+    return extractData<any[]>(result, '获取策略列表失败') || [];
+  },
+
+  async setStrategy(strategyId: string): Promise<boolean> {
+    const result = await api.aiSetStrategy(strategyId);
+    return extractSuccess(result, '切换策略失败');
+  },
+
+  async getIntentConfig(intent: string): Promise<any> {
+    const result = await api.aiGetIntentConfig(intent);
+    return extractData(result, '获取意图配置失败');
+  },
+
+  async chat(projectId: string, message: string, chapterId?: string): Promise<{ message: string; model: string } | null> {
+    const result = await api.aiChat(projectId, message, chapterId);
+    return extractData<{ message: string; model: string }>(result, 'AI 对话失败');
   },
 };
 
@@ -225,7 +321,7 @@ export const snapshotApi = {
 
   async rollbackChapter(projectId: string, chapterId: string): Promise<boolean> {
     const result = await api.rollbackChapter(projectId, chapterId);
-    return result?.success || false;
+    return extractSuccess(result, '章节回滚失败');
   },
 };
 
@@ -246,7 +342,7 @@ export const metricsApi = {
 export const checkApi = {
   async run(projectId: string): Promise<any> {
     const result = await api.runCheck(projectId);
-    return result?.success ? result.data : null;
+    return extractData(result, '运行检查失败');
   },
 
   async getMissingChapters(projectId: string): Promise<any[]> {
@@ -266,39 +362,49 @@ export const checkApi = {
 
   async resolveIssue(projectId: string, issue: any): Promise<boolean> {
     const result = await api.resolveIssue(projectId, issue);
-    return result?.success || false;
+    return extractSuccess(result, '修复问题失败');
   },
 
   async ignoreIssue(projectId: string, issue: any): Promise<boolean> {
     const result = await api.ignoreIssue(projectId, issue);
-    return result?.success || false;
+    return extractSuccess(result, '忽略问题失败');
   },
 };
 
 // 导出API
 export const exportApi = {
   async export(projectId: string, format: string): Promise<any> {
-    const result = await api.exportProject(projectId, format);
-    return result?.success ? result.data : null;
+    const result = await api.exportProject(projectId, normalizeExportFormat(format));
+    return extractData(result, '导出项目失败');
   },
 
   async exportChapters(projectId: string, chapterIds: string[], format: string): Promise<any> {
-    const result = await api.exportChapters(projectId, chapterIds, format);
-    return result?.success ? result.data : null;
+    const result = await api.exportChapters(projectId, chapterIds, normalizeExportFormat(format));
+    return extractData(result, '导出章节失败');
   },
 
   async preview(projectId: string, format: string): Promise<string> {
-    const result = await api.exportPreview(projectId, format);
+    const result = await api.exportPreview(projectId, normalizeExportFormat(format));
     return extractData<string>(result) || '';
   },
 
   async history(projectId: string): Promise<any[]> {
     const result = await api.getExportHistory(projectId);
-    return extractData<any[]>(result) || [];
+    const data = extractData<any>(result);
+    if (Array.isArray(data)) return data;
+    if (data?.recent && Array.isArray(data.recent)) return data.recent;
+    return [];
   },
 
-  async openDir(): Promise<boolean> {
-    const result = await api.openExportDir();
-    return result?.success || false;
+  async openDir(projectId?: string): Promise<boolean> {
+    const result = await api.openExportDir(projectId);
+    return extractSuccess(result, '打开导出目录失败');
   },
 };
+
+function normalizeExportFormat(format: string): string {
+  if (format === 'markdown') {
+    return 'md';
+  }
+  return format;
+}

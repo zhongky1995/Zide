@@ -1,6 +1,5 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as yaml from 'yaml';
 
 // 索引配置
 export interface IndexConfig {
@@ -22,7 +21,6 @@ export interface IndexEntry {
 export class SimpleIndex {
   private index: Map<string, IndexEntry[]> = new Map();
   private config: IndexConfig;
-  private indexFilePath: string;
 
   constructor(
     private readonly runtimeBasePath: string,
@@ -32,7 +30,6 @@ export class SimpleIndex {
       chunkSize: config.chunkSize || 2000,
       chunkOverlap: config.chunkOverlap || 200,
     };
-    this.indexFilePath = path.join(runtimeBasePath, '.index.json');
   }
 
   // 索引章节内容
@@ -69,20 +66,32 @@ export class SimpleIndex {
     // 确保加载索引
     await this.load(projectId);
 
-    const chapterEntries = this.index.get(chapterId) || [];
-    if (chapterEntries.length === 0) {
+    const allEntries = Array.from(this.index.values()).flat();
+    if (allEntries.length === 0) {
       return [];
     }
 
-    // 提取查询关键词
-    const queryKeywords = this.extractKeywords(query);
+    const normalizedQuery = query.trim();
+    const queryKeywords = this.extractKeywords(normalizedQuery);
 
     // 计算相关度
-    const scored = chapterEntries.map(entry => {
+    const scored = allEntries.map(entry => {
       let score = 0;
 
+      // 当前章节内容降权，避免“检索相关上下文”时反复命中自己
+      if (entry.chapterId === chapterId) {
+        score -= 5;
+      }
+
+      // 空查询默认按章节顺序与内容位置给基础分（越近章节、末段优先）
+      if (!normalizedQuery) {
+        score += this.parseChapterOrder(entry.chapterId) / 100;
+        if (entry.position === 'end') score += 3;
+        if (entry.position === 'middle') score += 1;
+      }
+
       // 标题匹配
-      if (entry.chapterTitle.includes(query)) {
+      if (normalizedQuery && entry.chapterTitle.includes(normalizedQuery)) {
         score += 10;
       }
 
@@ -232,9 +241,10 @@ export class SimpleIndex {
       indexData[chapterId] = entries;
     }
 
-    const dir = path.dirname(this.indexFilePath);
+    const indexPath = path.join(this.runtimeBasePath, projectId, '.index.json');
+    const dir = path.dirname(indexPath);
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(this.indexFilePath, JSON.stringify(indexData, null, 2));
+    await fs.writeFile(indexPath, JSON.stringify(indexData, null, 2));
   }
 
   // 加载
@@ -249,5 +259,11 @@ export class SimpleIndex {
       // 文件不存在，需要重建索引
       await this.rebuildProjectIndex(projectId);
     }
+  }
+
+  private parseChapterOrder(raw: string): number {
+    const normalized = raw.replace(/^ch-/i, '');
+    const parsed = parseInt(normalized, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 }

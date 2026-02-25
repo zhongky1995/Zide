@@ -4,14 +4,23 @@ import { registerProjectHandlers } from './ipc/project';
 import { registerOutlineHandlers } from './ipc/outline';
 import { registerChapterHandlers } from './ipc/chapter';
 import { registerContextHandlers } from './ipc/context';
-import { registerAIHandlers } from './ipc/ai';
+import { registerAIHandlers, initializeAIHandlers } from './ipc/ai';
 import { registerSnapshotHandlers } from './ipc/snapshot';
 import { registerCheckHandlers } from './ipc/check';
 import { registerExportHandlers } from './ipc/export';
 import { registerMetricsHandlers } from './ipc/metrics';
+import { logMainError } from './logger';
 
 // 开发环境 Vite 端口（默认3000，可能变化）
 const VITE_DEV_PORT = process.env.VITE_DEV_PORT || '3006';
+
+process.on('uncaughtException', (error) => {
+  void logMainError('Main process uncaughtException', error, { scope: 'main-process' });
+});
+
+process.on('unhandledRejection', (reason) => {
+  void logMainError('Main process unhandledRejection', reason, { scope: 'main-process' });
+});
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -33,7 +42,10 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // 初始化 AI 处理器（加载保存的配置）
+  await initializeAIHandlers();
+
   // 注册 IPC 处理器
   registerProjectHandlers();
   registerOutlineHandlers();

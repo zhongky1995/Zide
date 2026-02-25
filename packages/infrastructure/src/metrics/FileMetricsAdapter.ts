@@ -117,7 +117,7 @@ export class FileMetricsAdapter implements MetricsPort {
 
         // 提取字数
         const wordMatch = content.match(/wordCount:\s*(\d+)/);
-        const wordCount = wordMatch ? parseInt(wordMatch[1]) : 0;
+        const wordCount = wordMatch ? parseInt(wordMatch[1]) : this.countWords(this.extractBody(content));
 
         // 提取完成度
         const completionMatch = content.match(/completion:\s*(\d+)/);
@@ -130,6 +130,37 @@ export class FileMetricsAdapter implements MetricsPort {
     } catch {
       return [];
     }
+  }
+
+  private extractBody(content: string): string {
+    const lines = content.split('\n');
+    let bodyStart = 0;
+    let inFrontmatter = false;
+    let frontmatterEnded = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line === '---') {
+        if (!inFrontmatter && !frontmatterEnded) {
+          inFrontmatter = true;
+          continue;
+        }
+        if (inFrontmatter) {
+          frontmatterEnded = true;
+          bodyStart = i + 1;
+          break;
+        }
+      }
+    }
+
+    return lines.slice(bodyStart).join('\n');
+  }
+
+  private countWords(text: string): number {
+    if (!text) return 0;
+    const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const englishWords = text.replace(/[\u4e00-\u9fa5]/g, '').split(/\s+/).filter(w => w.length > 0).length;
+    return chineseChars + englishWords;
   }
 
   private async getSnapshotStats(projectDir: string): Promise<{ createdAt: string }[]> {
