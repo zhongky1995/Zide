@@ -17,6 +17,8 @@ Zide 是一个 AI 驱动的长文生产工作台，让用户以章节化、流�
 - **整体检查**：缺章检测、术语冲突、重复内容检测
 - **一键导出**：Markdown / HTML / PDF 三格式导出
 - **统计观测**：操作日志、采纳率、生成耗时统计
+- **统一Prompt管理**：14 个专业化 AI Agent，支持可扩展的 Prompt 框架
+- **规范化错误处理**：统一的错误码体系与异常处理机制
 
 ## 技术架构
 
@@ -104,6 +106,27 @@ runtime/projects/{project_id}/
 | 检查 | check:run | 运行检查 |
 | 导出 | export:project | 导出项目 |
 | 统计 | metrics:project | 获取统计 |
+
+## AI Agent 体系
+
+项目内置 14 个专业化 AI Agent，通过统一的 Prompt 框架管理：
+
+| Agent | 功能 |
+|-------|------|
+| ai-strategy-agent | AI 策略规划 |
+| chapter-workbench-agent | 章节工作台 |
+| content-orchestrator-agent | 内容编排 |
+| context-engine-agent | 上下文引擎 |
+| export-delivery-agent | 导出交付 |
+| metrics-observability-agent | 指标观测 |
+| outline-generation-agent | 大纲生成 |
+| outline-management-agent | 大纲管理 |
+| project-creation-agent | 项目创建 |
+| project-settings-agent | 项目设置 |
+| quality-check-agent | 质量检查 |
+| settings-generation-agent | 设置生成 |
+| snapshot-rollback-agent | 快照回滚 |
+| chapter-*-agent | 章节操作（续写/扩写/重写/补论证/润色/简化） |
 
 ## 许可证
 
