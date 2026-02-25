@@ -1,8 +1,8 @@
-# Zide 系统架构设计 v2.0
+# Zide 系统架构设计 v2.1
 
-版本：v2.0
+版本：v2.1
 日期：2026-02-25
-状态：Draft
+状态：Active
 文档类型：架构设计文档
 
 ---
@@ -71,13 +71,14 @@
 
 ### 2.2 新增模块清单
 
-| 模块 | 层级 | 职责 |
-|------|------|------|
-| GlobalSettingsManager | Application | 全局设定管理 |
-| OutlineVersionManager | Domain/Infrastructure | 大纲版本控制 |
-| ContextCompressor | Infrastructure | 记忆压缩 |
-| AIStrategyManager | Infrastructure | AI策略管理 |
-| ChapterTemplateEngine | Infrastructure | 章节模板 |
+| 模块 | 层级 | 职责 | 状态 |
+|------|------|------|------|
+| GlobalSettingsManager | Application | 全局设定管理 | ✅ 已实现 |
+| GenerateSettingsUseCase | Application | AI生成全局设定 | ✅ 已实现 |
+| OutlineVersionManager | Domain/Infrastructure | 大纲版本控制 | ✅ 已实现 |
+| ContextCompressor | Infrastructure | 记忆压缩 | ✅ 已实现 |
+| AIStrategyManager | Infrastructure | AI策略管理 | ✅ 已实现 |
+| ChapterTemplateEngine | Infrastructure | 章节模板 | ✅ 已实现 |
 
 ---
 
@@ -1236,51 +1237,51 @@ GenerateContentUseCase.generate()
 
 ### 10.1 新增文件
 
-| 文件路径 | 职责 |
-|---------|------|
-| `packages/domain/src/entities/AIStrategy.ts` | AI策略实体 |
-| `packages/domain/src/entities/ChapterTemplate.ts` | 章节模板实体 |
-| `packages/application/src/ports/ProjectSettingsPort.ts` | 设定端口接口 |
-| `packages/application/src/usecases/ProjectSettingsUseCase.ts` | 设定用例 |
-| `packages/infrastructure/src/index/ContextCompressor.ts` | 记忆压缩 |
-| `packages/infrastructure/src/llm/StrategyManager.ts` | 策略管理 |
-| `packages/infrastructure/src/llm/StrategyAwareLLMAdapter.ts` | 策略感知适配器 |
-| `packages/infrastructure/src/storage/FileStrategyRepo.ts` | 策略存储 |
+| 文件路径 | 职责 | 状态 |
+|---------|------|------|
+| `packages/domain/src/entities/AIStrategy.ts` | AI策略实体 | ✅ 已实现 |
+| `packages/domain/src/entities/ChapterTemplate.ts` | 章节模板实体 | ❌ 待实现 |
+| `packages/application/src/ports/SettingsPort.ts` | 设定端口接口 | ✅ 已实现 |
+| `packages/application/src/usecases/SettingsUseCases.ts` | 设定用例 | ✅ 已实现 |
+| `packages/infrastructure/src/index/ContextCompressor.ts` | 记忆压缩 | ✅ 已实现 |
+| `packages/infrastructure/src/llm/StrategyManager.ts` | 策略管理 | ✅ 已实现 |
+| `packages/infrastructure/src/llm/StrategyAwareLLMAdapter.ts` | 策略感知适配器 | ✅ 已实现 |
+| `packages/infrastructure/src/storage/FileStrategyRepo.ts` | 策略存储 | ✅ 已实现 |
 
 ### 10.2 修改文件
 
-| 文件路径 | 变更内容 |
-|---------|---------|
-| `packages/domain/src/entities/Project.ts` | 扩展ProjectMeta |
-| `packages/domain/src/entities/Outline.ts` | 添加版本控制字段 |
-| `packages/application/src/ports/OutlineRepoPort.ts` | 添加版本管理方法 |
-| `packages/application/src/usecases/OutlineUseCases.ts` | 添加版本用例 |
-| `packages/application/src/usecases/GenerateContentUseCase.ts` | 集成策略和压缩 |
-| `packages/infrastructure/src/index/SimpleIndexAdapter.ts` | 集成ContextCompressor |
-| `packages/infrastructure/src/llm/RealLLMAdapter.ts` | 保持为基础实现 |
+| 文件路径 | 变更内容 | 状态 |
+|---------|---------|------|
+| `packages/domain/src/entities/Project.ts` | 扩展ProjectMeta (writingGuide) | ✅ 已实现 |
+| `packages/domain/src/entities/Outline.ts` | 添加版本控制字段 | ✅ 已实现 |
+| `packages/application/src/ports/OutlineRepoPort.ts` | 添加版本管理方法 | ✅ 已实现 |
+| `packages/application/src/usecases/OutlineUseCases.ts` | 添加版本用例 | ✅ 已实现 |
+| `packages/application/src/usecases/GenerateContentUseCase.ts` | 集成策略和压缩 | ⚠️ 部分完成 |
+| `packages/infrastructure/src/index/SimpleIndexAdapter.ts` | 集成ContextCompressor | ✅ 已实现 |
+| `packages/infrastructure/src/llm/RealLLMAdapter.ts` | 保持为基础实现 | ✅ 已完成 |
 
 ---
 
 ## 11. 里程碑规划
 
-### Phase 1: 基础架构（1周）
+### Phase 1: 基础架构（1周）✅
 
-- [ ] 扩展Domain层实体
-- [ ] 实现ProjectSettingsPort和用例
-- [ ] 实现Outline版本管理
+- [x] 扩展Domain层实体
+- [x] 实现ProjectSettingsPort和用例
+- [x] 实现Outline版本管理
 
-### Phase 2: 记忆压缩（1周）
+### Phase 2: 记忆压缩（1周）✅
 
-- [ ] 实现ContextCompressor
-- [ ] 集成到SimpleIndexAdapter
+- [x] 实现ContextCompressor
+- [x] 集成到SimpleIndexAdapter
 - [ ] 性能测试与调优
 
-### Phase 3: AI策略层（1周）
+### Phase 3: AI策略层（1周）✅
 
-- [ ] 实现AIStrategy实体
-- [ ] 实现StrategyManager
-- [ ] 实现StrategyAwareLLMAdapter
-- [ ] UI配置界面
+- [x] 实现AIStrategy实体
+- [x] 实现StrategyManager
+- [x] 实现StrategyAwareLLMAdapter
+- [x] UI配置界面
 
 ### Phase 4: 章节模板（0.5周）
 
@@ -1325,6 +1326,133 @@ GenerateContentUseCase.generate()
     }
   ]
 }
+```
+
+### 7. Prompt管理层（v2.2 新增）
+
+#### 7.1 设计目标
+
+将AI Prompt从硬编码中解耦，实现：
+- Prompt模板的外部化管理
+- 运行时动态加载和更新
+- 多语言/多场景Prompt变体支持
+
+#### 7.2 目录结构
+
+```
+prompts/
+├── agents/                    # Agent定义（旧）
+│   ├── _manifest.json
+│   └── *.prompt.md
+└── global/                    # 全局Prompt（新增）
+    ├── _manifest.json         # 统一索引
+    ├── generate-settings.prompt.md    # 全局设定生成
+    ├── chapter-base.prompt.md         # 章节基础系统
+    ├── chapter-continue.prompt.md    # 续写
+    ├── chapter-expand.prompt.md       # 扩写
+    ├── chapter-rewrite.prompt.md     # 重写
+    ├── chapter-add-argument.prompt.md # 补论证
+    ├── chapter-polish.prompt.md      # 润色
+    └── chapter-simplify.prompt.md    # 简化
+```
+
+#### 7.3 Prompt加载器
+
+```typescript
+// packages/infrastructure/src/llm/PromptLoader.ts
+
+export class PromptLoader {
+  private promptsDir: string;
+  private cache: Map<string, string> = new Map();
+
+  load(promptId: string, category: string = 'global'): string
+  loadWithMeta(promptId: string, category: string): { meta: PromptMeta; content: string } | null
+  listPrompts(category?: string): PromptInfo[]
+  clearCache(): void
+}
+```
+
+#### 7.4 使用方式
+
+RealLLMAdapter 和 GenerateSettingsUseCase 支持：
+1. 优先从外部prompt文件加载
+2. 加载失败时使用内置fallback prompt
+3. 支持prompt模板变量替换
+
+### 8. 服务容器（v2.2 新增）
+
+#### 8.1 设计目标
+
+解决IPC层每次请求重复创建用例实例的性能问题：
+- 基础设施层单例管理
+- 依赖注入简化
+- 减少内存开销
+
+#### 8.2 实现
+
+```typescript
+// apps/desktop/src/main/ServiceContainer.ts
+
+class ServiceContainer {
+  static getInstance(): ServiceContainer
+
+  // 单例访问
+  get projectRepo(): FileProjectRepo
+  get chapterRepo(): FileChapterRepo
+  get outlineRepo(): FileOutlineRepo
+  get snapshotRepo(): FileSnapshotRepo
+  get indexAdapter(): SimpleIndexAdapter
+  get promptLoader(): PromptLoader
+}
+```
+
+#### 8.3 使用示例
+
+```typescript
+// 之前（每次创建新实例）
+function createGenerateUseCase() {
+  const chapterRepo = new FileChapterRepo(runtimeBasePath); // 重复创建
+  return new GenerateContentUseCase(llmAdapter, indexAdapter, chapterRepo);
+}
+
+// 之后（使用单例）
+import { serviceContainer } from '../ServiceContainer';
+
+function createGenerateUseCase() {
+  return new GenerateContentUseCase(llmAdapter, indexAdapter, serviceContainer.chapterRepo);
+}
+```
+
+### 9. 错误处理规范（v2.2 新增）
+
+#### 9.1 错误码定义
+
+```typescript
+// apps/desktop/src/main/ipc/errors.ts
+
+export enum ErrorCode {
+  // 通用错误 (1xxx)
+  UNKNOWN = 'UNKNOWN',
+  INVALID_PARAMS = 'INVALID_PARAMS',
+  NOT_FOUND = 'NOT_FOUND',
+
+  // 项目相关错误 (2xxx)
+  PROJECT_NOT_FOUND = 'PROJECT_NOT_FOUND',
+
+  // AI相关错误 (5xxx)
+  AI_GENERATE_FAILED = 'AI_GENERATE_FAILED',
+  // ...
+}
+```
+
+#### 9.2 响应格式
+
+```typescript
+// 成功响应
+{ success: true, data: T }
+
+// 错误响应
+{ success: false, error: string, code?: ErrorCode, details?: Record }
 ```
 
 ### 12.2 版本历史

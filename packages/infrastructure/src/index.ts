@@ -10,6 +10,7 @@ export * from './llm/MockLLMAdapter';
 export * from './llm/RealLLMAdapter';
 export * from './llm/StrategyManager';
 export * from './llm/StrategyAwareLLMAdapter';
+export * from './llm/PromptLoader';
 export * from './storage/FileStrategyRepo';
 export * from './check/SimpleRuleEngine';
 export * from './export/FileExportAdapter';

@@ -1,5 +1,6 @@
 import { LLMPort, LLMGenerateParams, LLMGenerateResult, LLMProviderConfig } from '@zide/application';
 import { ChapterIntent } from '@zide/domain';
+import { PromptLoader } from './PromptLoader';
 
 interface PromptBundle {
   system: string;
@@ -11,6 +12,12 @@ interface PromptBundle {
  * 支持 OpenAI、Anthropic Claude、Minimax、Kimi
  */
 export class RealLLMAdapter implements LLMPort {
+  private promptLoader: PromptLoader;
+
+  constructor(promptLoader?: PromptLoader) {
+    this.promptLoader = promptLoader || new PromptLoader();
+  }
+
   private config: LLMProviderConfig = {
     provider: 'openai',
     model: 'gpt-4',
@@ -139,16 +146,26 @@ export class RealLLMAdapter implements LLMPort {
   }
 
   private getSystemPrompt(intent: ChapterIntent): string {
+    // 尝试从外部prompt文件加载
+    const intentKey = intent.toLowerCase();
+    const externalPrompt = this.promptLoader.load(intentKey, 'global');
+
+    if (externalPrompt) {
+      // 如果加载到外部prompt，解析并使用
+      return this.parseExternalPrompt(externalPrompt, intent);
+    }
+
+    // Fallback: 使用内置硬编码prompt
     const basePrompt = `你是 Zide 长文 AI 生产系统中的章节写作代理。
 
 ## 任务定位
-在“可回滚、可检查、可交付”的写作流程中，根据给定上下文完成单次章节生成任务。
+在”可回滚、可检查、可交付”的写作流程中，根据给定上下文完成单次章节生成任务。
 
 ## 通用硬约束
 1. 严格遵循输入中的项目背景、大纲、术语、章节目标。
 2. 输出必须是可直接写入章节的 Markdown 正文，不要输出解释、前言、道歉、过程说明。
 3. 保持原文语言、风格、术语一致；禁止无依据地改变立场或结论。
-4. 禁止编造具体数据、机构、研究结论；若事实依据不足，使用“[待补充数据]”占位。
+4. 禁止编造具体数据、机构、研究结论；若事实依据不足，使用”[待补充数据]”占位。
 5. 若多条指令冲突，优先级为：项目/章节硬约束 > 用户自定义要求 > 默认意图策略。`;
 
     const prompts: Record<ChapterIntent, string> = {
@@ -220,6 +237,37 @@ export class RealLLMAdapter implements LLMPort {
     }
 
     return '替换模式（replace）：请返回完整章节全文，系统会用该结果替换当前章节。';
+  }
+
+  /**
+   * 解析外部prompt文件
+   * 外部prompt格式：包含metadata和实际prompt内容
+   */
+  private parseExternalPrompt(content: string, intent: ChapterIntent): string {
+    // 提取metadata后的实际内容（跳过以-开头的行）
+    const lines = content.split('\n');
+    const actualContent: string[] = [];
+    let inContent = false;
+
+    for (const line of lines) {
+      if (!inContent && line.trim() && !line.startsWith('#') && !line.startsWith('-')) {
+        inContent = true;
+      }
+      if (inContent) {
+        actualContent.push(line);
+      }
+    }
+
+    const promptContent = actualContent.join('\n').trim();
+
+    // 加载base prompt并组合
+    const basePrompt = this.promptLoader.load('chapter-base', 'global');
+    if (basePrompt) {
+      const baseContent = this.parseExternalPrompt(basePrompt, intent);
+      return [baseContent, promptContent].join('\n\n');
+    }
+
+    return promptContent;
   }
 
   private clip(value: string, maxChars: number): string {

@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-02-25",
+  "prompts": [
+    {
+      "prompt_id": "generate-settings",
+      "name": "全局设定生成",
+      "category": "global",
+      "file": "generate-settings.prompt.md",
+      "description": "基于用户想法生成项目的全局设定"
+    },
+    {
+      "prompt_id": "chapter-base",
+      "name": "章节写作基础系统",
+      "category": "chapter",
+      "file": "chapter-base.prompt.md",
+      "description": "所有章节写作agent的基础系统prompt"
+    },
+    {
+      "prompt_id": "chapter-continue",
+      "name": "章节续写",
+      "category": "chapter",
+      "file": "chapter-continue.prompt.md",
+      "extends": "chapter-base",
+      "description": "章节续写意图，追加式续写任务"
+    },
+    {
+      "prompt_id": "chapter-expand",
+      "name": "章节扩写",
+      "category": "chapter",
+      "file": "chapter-expand.prompt.md",
+      "extends": "chapter-base",
+      "description": "章节扩写意图，扩展现有内容"
+    },
+    {
+      "prompt_id": "chapter-rewrite",
+      "name": "章节重写",
+      "category": "chapter",
+      "file": "chapter-rewrite.prompt.md",
+      "extends": "chapter-base",
+      "description": "章节重写意图，全文重写"
+    },
+    {
+      "prompt_id": "chapter-add-argument",
+      "name": "章节补论证",
+      "category": "chapter",
+      "file": "chapter-add-argument.prompt.md",
+      "extends": "chapter-base",
+      "description": "章节补论证意图，为观点补充证据"
+    },
+    {
+      "prompt_id": "chapter-polish",
+      "name": "章节润色",
+      "category": "chapter",
+      "file": "chapter-polish.prompt.md",
+      "extends": "chapter-base",
+      "description": "章节润色意图，优化表达"
+    },
+    {
+      "prompt_id": "chapter-simplify",
+      "name": "章节简化",
+      "category": "chapter",
+      "file": "chapter-simplify.prompt.md",
+      "extends": "chapter-base",
+      "description": "章节简化意图，降低复杂度"
+    }
+  ]
+}
