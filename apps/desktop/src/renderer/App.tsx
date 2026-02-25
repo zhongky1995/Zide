@@ -549,11 +549,11 @@ function ProjectWorkspace({ addToast }: PageProps) {
       )}
 
       {activeTab === 'check' && (
-        <CheckPage projectId={projectId || ''} />
+        <CheckPage projectId={projectId || ''} addToast={addToast} />
       )}
 
       {activeTab === 'export' && (
-        <ExportPage projectId={projectId || ''} />
+        <ExportPage projectId={projectId || ''} addToast={addToast} />
       )}
     </div>
   );
@@ -931,7 +931,12 @@ function CheckPage({ projectId, addToast }: { projectId?: string; addToast?: (me
   return (
     <div>
       <div className="card">
-        <h3 className="mb-4">检查结果</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3>检查结果</h3>
+          <button className="btn-primary" onClick={runCheck} disabled={loading}>
+            {loading ? '检查中...' : '运行检查'}
+          </button>
+        </div>
         {results.length === 0 ? (
           <div className="empty-state">
             <p>点击"运行检查"开始全面检查</p>

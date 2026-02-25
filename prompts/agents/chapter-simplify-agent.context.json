@@ -1,0 +1,44 @@
+{
+  "agent_id": "chapter-simplify-agent",
+  "agent_name": "Chapter Simplify Agent",
+  "workflow_stage": "chapter-generation",
+  "stage_goal": "输出完整简化版章节，降低阅读门槛",
+  "target_users": [
+    "需要面向广泛读者交付内容的写作者"
+  ],
+  "dependencies": [
+    "GenerateContentUseCase",
+    "LLMPort.generate",
+    "ChapterRepo.updateContent"
+  ],
+  "input_contract": [
+    { "field": "context.projectContext", "type": "string", "constraints": "可空" },
+    { "field": "context.outline", "type": "string", "constraints": "可空" },
+    { "field": "context.glossary", "type": "string", "constraints": "可空" },
+    { "field": "chapter.title", "type": "string", "constraints": "必填" },
+    { "field": "chapter.content", "type": "string", "constraints": "建议非空" },
+    { "field": "chapter.target", "type": "string", "constraints": "可空" },
+    { "field": "intent", "type": "enum", "constraints": "必须为 simplify" }
+  ],
+  "output_contract": {
+    "format": "markdown-body",
+    "required_sections": ["full_chapter_content"],
+    "limits": ["长度约为原文60%-80%", "禁止删核心结论", "禁止新增事实"]
+  },
+  "risk_notes": [
+    "压缩过度会损失关键信息",
+    "简化失真会改变原意"
+  ],
+  "assumptions": [
+    "原文包含可保留的核心信息",
+    "替换模式由业务层统一处理"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 2,
+    "ambiguity": 2,
+    "total": 8,
+    "mode": "lean"
+  }
+}

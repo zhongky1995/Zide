@@ -42,6 +42,13 @@ export class MockLLMAdapter implements LLMPort {
   private buildPrompt(params: LLMGenerateParams): string {
     const parts: string[] = [];
 
+    parts.push(`# 写作意图: ${this.getIntentText(params.intent)} (${params.intent})`);
+    parts.push(`输出模式: ${this.getOutputMode(params.intent)}`);
+
+    if (params.customPrompt?.trim()) {
+      parts.push(`## 用户自定义要求\n${params.customPrompt.trim()}`);
+    }
+
     // 项目上下文
     if (params.context.projectContext) {
       parts.push(`## 项目背景\n${params.context.projectContext}`);
@@ -74,6 +81,17 @@ export class MockLLMAdapter implements LLMPort {
     parts.push(`\n当前内容:\n${params.chapter.content.slice(-1000)}`);
 
     return parts.join('\n\n');
+  }
+
+  private getOutputMode(intent: ChapterIntent): string {
+    if (
+      intent === ChapterIntent.CONTINUE ||
+      intent === ChapterIntent.EXPAND ||
+      intent === ChapterIntent.ADD_ARGUMENT
+    ) {
+      return '追加模式（append）';
+    }
+    return '替换模式（replace）';
   }
 
   private async mockGenerate(intent: ChapterIntent, currentContent: string, prompt: string): Promise<string> {
