@@ -52,19 +52,31 @@ export class FileSnapshotRepo implements SnapshotRepoPort {
   }
 
   async findById(id: string): Promise<Snapshot | null> {
-    // 尝试在两个快照目录中查找
-    const projectId = id.split('-')[1] || '';
+    // snapshotId 不包含 projectId，需扫描项目目录查找
+    try {
+      const entries = await fs.readdir(this.runtimeBasePath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
 
-    for (const type of [SnapshotType.CHAPTER, SnapshotType.GLOBAL]) {
-      const snapshotFile = path.join(this.runtimeBasePath, projectId, 'snapshots', type, `${id}.json`);
-      try {
-        const content = await fs.readFile(snapshotFile, 'utf-8');
-        return JSON.parse(content);
-      } catch {
-        continue;
+        for (const type of [SnapshotType.CHAPTER, SnapshotType.GLOBAL]) {
+          const snapshotFile = path.join(
+            this.runtimeBasePath,
+            entry.name,
+            'snapshots',
+            type,
+            `${id}.json`
+          );
+          try {
+            const content = await fs.readFile(snapshotFile, 'utf-8');
+            return JSON.parse(content);
+          } catch {
+            continue;
+          }
+        }
       }
+    } catch {
+      // ignore
     }
-
     return null;
   }
 
@@ -96,7 +108,7 @@ export class FileSnapshotRepo implements SnapshotRepoPort {
 
   async findChapterSnapshots(projectId: string, chapterId: string): Promise<Snapshot[]> {
     const snapshots: Snapshot[] = [];
-    const snapshotDir = path.join(this.runtimeBasePath, projectId, 'snapshots', 'chapter', chapterId);
+    const snapshotDir = path.join(this.runtimeBasePath, projectId, 'snapshots', 'chapter');
 
     try {
       const files = await fs.readdir(snapshotDir);
@@ -105,7 +117,10 @@ export class FileSnapshotRepo implements SnapshotRepoPort {
         if (!file.endsWith('.json')) continue;
 
         const content = await fs.readFile(path.join(snapshotDir, file), 'utf-8');
-        snapshots.push(JSON.parse(content));
+        const snapshot = JSON.parse(content) as Snapshot;
+        if (snapshot.chapterId === chapterId) {
+          snapshots.push(snapshot);
+        }
       }
     } catch {
       // 目录不存在
@@ -203,21 +218,43 @@ export class FileSnapshotRepo implements SnapshotRepoPort {
     // 解析章节内容
     const lines = content.split('\n');
     let title = chapterId;
-    let body = content;
+    let body = '';
     let number = chapterId;
+    let inFrontmatter = false;
+    let frontmatterEnded = false;
+    let bodyStartIndex = 0;
 
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('# ')) {
-        title = lines[i].replace('# ', '');
+      const line = lines[i].trim();
+
+      if (line.startsWith('# ')) {
+        title = line.replace('# ', '');
       }
-      if (lines[i].trim() === '---') {
-        // 找到 frontmatter 结束
-        body = lines.slice(i + 1).join('\n').trim();
-        break;
+
+      if (line === '---') {
+        if (!inFrontmatter && !frontmatterEnded) {
+          inFrontmatter = true;
+          continue;
+        }
+
+        if (inFrontmatter) {
+          inFrontmatter = false;
+          frontmatterEnded = true;
+          bodyStartIndex = i + 1;
+          continue;
+        }
       }
-      if (lines[i].startsWith('number: ')) {
-        number = lines[i].replace('number: ', '');
+
+      if (inFrontmatter && line.startsWith('number: ')) {
+        number = line.replace('number: ', '').trim();
       }
+    }
+
+    if (frontmatterEnded) {
+      body = lines.slice(bodyStartIndex).join('\n').trim();
+    } else {
+      // 兼容旧文件：没有 frontmatter 时去掉首行标题
+      body = lines.slice(1).join('\n').trim();
     }
 
     return {

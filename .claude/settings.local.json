@@ -53,7 +53,14 @@
       "Bash(cp:*)",
       "Bash(kill:*)",
       "mcp__plugin_oh-my-claudecode_t__lsp_diagnostics",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "mcp__plugin_oh-my-claudecode_t__state_write",
+      "mcp__plugin_oh-my-claudecode_t__lsp_diagnostics_directory",
+      "mcp__plugin_oh-my-claudecode_t__state_list_active",
+      "mcp__plugin_oh-my-claudecode_t__state_read",
+      "mcp__plugin_oh-my-claudecode_t__state_clear",
+      "mcp__plugin_oh-my-claudecode_t__state_get_status",
+      "Bash(/Users/Zhuanz/Desktop/ccode/Zide/scripts/dev.sh:*)"
     ]
   }
 }

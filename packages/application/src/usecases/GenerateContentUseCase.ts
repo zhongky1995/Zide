@@ -31,14 +31,21 @@ export class GenerateContentUseCase {
       throw new ChapterNotFoundError(chapterId);
     }
 
-    // 2. 打包上下文
-    const contextPack = await this.indexPort.packContext(projectId, chapterId);
+    // 2. 打包上下文（使用压缩版本，支持大项目）
+    // 默认使用 8000 token 预算，可根据配置调整
+    let contextPack;
+    if (typeof (this.indexPort as any).packCompressedContext === 'function') {
+      const result = await (this.indexPort as any).packCompressedContext(projectId, chapterId, 8000);
+      contextPack = result.contextPack;
+    } else {
+      contextPack = await this.indexPort.packContext(projectId, chapterId);
+    }
 
     // 3. 调用 LLM 生成
     const result = await this.llmPort.generate({
       context: {
         projectContext: contextPack.projectContext,
-        relatedChapters: contextPack.relatedChapters.map(c => c.content),
+        relatedChapters: contextPack.relatedChapters.map((c: any) => c.content),
         glossary: contextPack.glossary,
         outline: contextPack.outline,
       },
@@ -59,7 +66,7 @@ export class GenerateContentUseCase {
       chapterId,
       intent,
       input: {
-        contextUsed: contextPack.sources.map(s => s.chapterId),
+        contextUsed: contextPack.sources.map((s: any) => s.chapterId),
         prompt: customPrompt,
       },
       output: {

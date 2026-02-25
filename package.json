@@ -8,14 +8,19 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @zide/domain -w @zide/application -w @zide/desktop",
+    "build": "npm run build -w @zide/domain -w @zide/application -w @zide/infrastructure -w @zide/desktop",
     "dev:desktop": "npm run dev -w @zide/desktop",
     "build:desktop": "npm run build -w @zide/desktop",
     "test": "echo 'No tests in root' && exit 0",
-    "test:unit": "npm run test:unit -w @zide/domain && npm run test:unit -w @zide/application",
-    "test:integration": "npm run test:integration"
+    "test:unit": "npm run test:unit -w @zide/domain && npm run test:unit -w @zide/application && npm run test:unit -w @zide/infrastructure",
+    "test:integration": "npm run build -w @zide/domain && npm run build -w @zide/application && npm run build -w @zide/infrastructure && node scripts/test-integration-core-flow.js",
+    "test:frontend-flow": "npm run build -w @zide/domain && npm run build -w @zide/application && npm run build -w @zide/infrastructure && node scripts/test-frontend-full-flow.js",
+    "test:ui-regression": "npm run build -w @zide/domain && npm run build -w @zide/application && npm run build -w @zide/infrastructure && npm run build -w @zide/desktop && node scripts/test-ui-regression-electron.js",
+    "test:preflight": "npm run build && npm run test:unit && npm run test:integration && npm run test:frontend-flow",
+    "test:preflight:full": "npm run test:preflight && npm run test:ui-regression"
   },
   "devDependencies": {
+    "playwright": "^1.58.2",
     "typescript": "^5.3.0"
   }
 }

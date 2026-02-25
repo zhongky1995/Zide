@@ -1,0 +1,70 @@
+{
+  "agent_id": "export-delivery-agent",
+  "agent_name": "Export Delivery Agent",
+  "workflow_stage": "delivery",
+  "stage_goal": "将项目内容稳定导出为可交付文件并保留历史",
+  "target_users": [
+    "需要快速生成 MD/HTML/PDF 交付物的用户"
+  ],
+  "dependencies": [
+    "ExportUseCases",
+    "ExportPort",
+    "FileExportAdapter"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "必填"
+    },
+    {
+      "field": "format",
+      "type": "enum",
+      "constraints": "md|html|pdf，必填"
+    },
+    {
+      "field": "chapterIds",
+      "type": "string[]",
+      "constraints": "导出指定章节时必填"
+    },
+    {
+      "field": "config",
+      "type": "object",
+      "constraints": "可选，导出配置 patch"
+    },
+    {
+      "field": "filePath",
+      "type": "string",
+      "constraints": "deleteExport 时必填"
+    }
+  ],
+  "output_contract": {
+    "format": "export-result-or-content",
+    "required_sections": [
+      "format",
+      "outputPath",
+      "status",
+      "timestamp",
+      "history counters"
+    ],
+    "limits": [
+      "失败时不得影响源章节",
+      "历史记录需可查询 recent + total"
+    ]
+  },
+  "risk_notes": [
+    "格式转换失败影响交付时效",
+    "误删导出路径导致历史不一致"
+  ],
+  "assumptions": [
+    "导出目录由运行时路径统一管理"
+  ],
+  "complexity": {
+    "scope": 3,
+    "dependency": 2,
+    "risk": 3,
+    "ambiguity": 1,
+    "total": 9,
+    "mode": "standard"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "agent_id": "snapshot-rollback-agent",
+  "agent_name": "Snapshot Rollback Agent",
+  "workflow_stage": "version-control",
+  "stage_goal": "管理快照创建、查询与回滚，保障可回退能力",
+  "target_users": [
+    "高风险改稿前后需要版本保护的用户"
+  ],
+  "dependencies": [
+    "SnapshotUseCases",
+    "SnapshotRepoPort",
+    "SnapshotType"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "create/list/cleanup/count 必填"
+    },
+    {
+      "field": "snapshotId",
+      "type": "string",
+      "constraints": "get/rollback/delete 必填"
+    },
+    {
+      "field": "chapterId",
+      "type": "string",
+      "constraints": "章节快照与章节回滚必填"
+    },
+    {
+      "field": "type",
+      "type": "enum",
+      "constraints": "chapter|global，可选"
+    },
+    {
+      "field": "keepCount",
+      "type": "number",
+      "constraints": "cleanup 可选，默认 50"
+    }
+  ],
+  "output_contract": {
+    "format": "snapshot-object-or-rollback-result",
+    "required_sections": [
+      "snapshot metadata",
+      "restoredChapters[] for rollback"
+    ],
+    "limits": [
+      "回滚必须返回实际恢复章节集合",
+      "自动清理需保留最近 N 个"
+    ]
+  },
+  "risk_notes": [
+    "错误回滚导致内容回退错位",
+    "清理策略过激导致恢复点丢失"
+  ],
+  "assumptions": [
+    "章节快照与全局快照共存于同一项目空间"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 3,
+    "ambiguity": 1,
+    "total": 8,
+    "mode": "lean"
+  }
+}

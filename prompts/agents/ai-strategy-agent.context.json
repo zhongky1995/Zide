@@ -1,0 +1,59 @@
+{
+  "agent_id": "ai-strategy-agent",
+  "agent_name": "AI Strategy Agent",
+  "workflow_stage": "generation-strategy",
+  "stage_goal": "按策略管理模型参数与意图覆盖规则，稳定生成行为",
+  "target_users": [
+    "需要在速度/质量/成本间切换策略的高级用户"
+  ],
+  "dependencies": [
+    "AIStrategyManager",
+    "StrategyAwareLLMAdapter",
+    "ai IPC handlers"
+  ],
+  "input_contract": [
+    {
+      "field": "operation",
+      "type": "enum",
+      "constraints": "getStrategy|listStrategies|setStrategy|getIntentConfig"
+    },
+    {
+      "field": "strategyId",
+      "type": "string",
+      "constraints": "setStrategy 时必填，需存在于策略集"
+    },
+    {
+      "field": "intent",
+      "type": "enum",
+      "constraints": "getIntentConfig 时必填，ChapterIntent 枚举值"
+    }
+  ],
+  "output_contract": {
+    "format": "strategy-object-or-config",
+    "required_sections": [
+      "activeStrategy",
+      "provider/model params",
+      "intentOverrides"
+    ],
+    "limits": [
+      "不存在策略时必须回退默认策略",
+      "intentConfig 输出需含 outputMode 与 token 范围"
+    ]
+  },
+  "risk_notes": [
+    "策略参数错误导致生成质量波动",
+    "outputMode 配置不一致破坏写入逻辑"
+  ],
+  "assumptions": [
+    "内置策略集始终可加载",
+    "策略变更不需要历史回放迁移"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 3,
+    "risk": 2,
+    "ambiguity": 2,
+    "total": 9,
+    "mode": "standard"
+  }
+}

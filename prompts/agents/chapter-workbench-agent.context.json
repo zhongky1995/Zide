@@ -1,0 +1,63 @@
+{
+  "agent_id": "chapter-workbench-agent",
+  "agent_name": "Chapter Workbench Agent",
+  "workflow_stage": "chapter-editing",
+  "stage_goal": "保障章节编辑、状态与完成度管理稳定可追踪",
+  "target_users": [
+    "日常在章节页写作和修订的用户"
+  ],
+  "dependencies": [
+    "ChapterWorkbenchUseCase",
+    "ChapterRepoPort"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "必填"
+    },
+    {
+      "field": "chapterId",
+      "type": "string",
+      "constraints": "章节操作必填"
+    },
+    {
+      "field": "operation",
+      "type": "enum",
+      "constraints": "get|getList|save|updateStatus|updateMeta|updateSummary|updateCompletion|getNextNumber"
+    },
+    {
+      "field": "content",
+      "type": "string",
+      "constraints": "save 时必填"
+    }
+  ],
+  "output_contract": {
+    "format": "chapter-object-or-list",
+    "required_sections": [
+      "chapter.content",
+      "status",
+      "completion",
+      "wordCount"
+    ],
+    "limits": [
+      "完成度范围 0-100",
+      "保存后必须可读回"
+    ]
+  },
+  "risk_notes": [
+    "误写章节导致内容丢失",
+    "状态和完成度不一致影响统计"
+  ],
+  "assumptions": [
+    "wordCount 由仓储层或实体计算维护"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 2,
+    "ambiguity": 1,
+    "total": 7,
+    "mode": "lean"
+  }
+}

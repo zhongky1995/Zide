@@ -9,3 +9,5 @@ coverage/
 .vscode/
 .idea/
 .omc/
+.playwright-cli/
+output/

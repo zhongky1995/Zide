@@ -1,20 +1,20 @@
 {
-  "version": "1.0.0",
-  "generated_at": "2026-02-25",
+  "version": "1.1.0",
+  "generated_at": "2026-02-25T18:26:14Z",
   "prompts": [
     {
       "prompt_id": "generate-settings",
       "name": "全局设定生成",
       "category": "global",
       "file": "generate-settings.prompt.md",
-      "description": "基于用户想法生成项目的全局设定"
+      "description": "基于用户想法生成项目全局设定 JSON"
     },
     {
       "prompt_id": "chapter-base",
       "name": "章节写作基础系统",
       "category": "chapter",
       "file": "chapter-base.prompt.md",
-      "description": "所有章节写作agent的基础系统prompt"
+      "description": "所有章节写作意图共享基础约束"
     },
     {
       "prompt_id": "chapter-continue",
@@ -22,7 +22,7 @@
       "category": "chapter",
       "file": "chapter-continue.prompt.md",
       "extends": "chapter-base",
-      "description": "章节续写意图，追加式续写任务"
+      "description": "追加式续写当前章节"
     },
     {
       "prompt_id": "chapter-expand",
@@ -30,7 +30,7 @@
       "category": "chapter",
       "file": "chapter-expand.prompt.md",
       "extends": "chapter-base",
-      "description": "章节扩写意图，扩展现有内容"
+      "description": "追加式扩写，提高信息密度"
     },
     {
       "prompt_id": "chapter-rewrite",
@@ -38,7 +38,7 @@
       "category": "chapter",
       "file": "chapter-rewrite.prompt.md",
       "extends": "chapter-base",
-      "description": "章节重写意图，全文重写"
+      "description": "替换式重写，优化结构与表达"
     },
     {
       "prompt_id": "chapter-add-argument",
@@ -46,7 +46,7 @@
       "category": "chapter",
       "file": "chapter-add-argument.prompt.md",
       "extends": "chapter-base",
-      "description": "章节补论证意图，为观点补充证据"
+      "description": "追加式补论证，增强说服力"
     },
     {
       "prompt_id": "chapter-polish",
@@ -54,7 +54,7 @@
       "category": "chapter",
       "file": "chapter-polish.prompt.md",
       "extends": "chapter-base",
-      "description": "章节润色意图，优化表达"
+      "description": "替换式润色，提升可读性与规范性"
     },
     {
       "prompt_id": "chapter-simplify",
@@ -62,7 +62,7 @@
       "category": "chapter",
       "file": "chapter-simplify.prompt.md",
       "extends": "chapter-base",
-      "description": "章节简化意图，降低复杂度"
+      "description": "替换式简化，降低阅读门槛"
     }
   ]
 }

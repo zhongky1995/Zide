@@ -1,18 +1,23 @@
 # Prompt: 章节重写 (chapter-rewrite)
 - prompt_id: chapter-rewrite
-- version: 1.0.0
-- created_at: 2026-02-25
-- description: 章节重写意图，全文重写
+- version: 1.1.0
+- created_at: 2026-02-25T18:26:14Z
+- description: 替换式重写，优化结构与表达
 - extends: chapter-base
 
 ## Intent Strategy
 重写（replace）
 
-## Rules
-1. 在不改变核心观点的前提下，重组段落顺序和表达，提升逻辑清晰度。
-2. 合并重复论述，补齐过渡句，让段落之间形成完整叙事链。
-3. 保留关键信息和术语，不删除必要结论。
-4. 建议重写后长度保持在原文的 80%-120%。
+## Execution Rules
+1. 在不改变核心观点前提下重组段落和表达。
+2. 合并重复论述，补足过渡句，确保逻辑链连续。
+3. 保留关键结论、关键术语与必要前提条件。
+4. 建议输出长度为原文 80%-120%。
 
-## Output
-返回完整重写后的章节全文（replace 内容）。
+## Output Contract
+- 返回完整章节全文，用于替换原文。
+- 禁止只返回局部片段。
+
+## Forbidden
+- 禁止改变原文结论立场。
+- 禁止删掉关键论证步骤导致信息断裂。

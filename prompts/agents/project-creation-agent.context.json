@@ -1,0 +1,70 @@
+{
+  "agent_id": "project-creation-agent",
+  "agent_name": "Project Creation Agent",
+  "workflow_stage": "project-init",
+  "stage_goal": "创建项目实体与目录骨架，确保后续流程可执行",
+  "target_users": [
+    "新建项目用户",
+    "首次使用引导用户"
+  ],
+  "dependencies": [
+    "CreateProjectUseCase",
+    "ProjectService",
+    "ProjectRepoPort"
+  ],
+  "input_contract": [
+    {
+      "field": "name",
+      "type": "string",
+      "constraints": "必填，去除前后空格后非空"
+    },
+    {
+      "field": "type",
+      "type": "enum",
+      "constraints": "proposal|report|research|novel|other"
+    },
+    {
+      "field": "targetReaders",
+      "type": "string",
+      "constraints": "可选"
+    },
+    {
+      "field": "targetScale",
+      "type": "string",
+      "constraints": "可选"
+    },
+    {
+      "field": "description",
+      "type": "string",
+      "constraints": "可选"
+    }
+  ],
+  "output_contract": {
+    "format": "project-object",
+    "required_sections": [
+      "project_id",
+      "meta_initialized",
+      "runtime_paths_created"
+    ],
+    "limits": [
+      "禁止修改其他项目目录",
+      "禁止跳过输入校验"
+    ]
+  },
+  "risk_notes": [
+    "项目目录冲突导致初始化失败",
+    "输入未校验导致后续流程异常"
+  ],
+  "assumptions": [
+    "运行时路径由 Electron userData/projects 提供",
+    "创建流程为单项目串行执行"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 2,
+    "ambiguity": 1,
+    "total": 7,
+    "mode": "lean"
+  }
+}

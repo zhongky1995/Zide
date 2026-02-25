@@ -1,6 +1,8 @@
 import { IndexPort, ContextChunk, ContextPack, IndexConfig, RetrieveParams } from '@zide/application';
+import { Chapter, ChapterSummary } from '@zide/domain';
 import { SimpleIndex } from './SimpleIndex';
 import { ContextCompressor, CompressionConfig, CompressionResult } from './ContextCompressor';
+import { FileChapterRepo } from '../storage/FileChapterRepo';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -8,10 +10,12 @@ import * as path from 'path';
 export class SimpleIndexAdapter implements IndexPort {
   private index: SimpleIndex;
   private compressor: ContextCompressor;
+  private readonly chapterRepo: FileChapterRepo;
 
   constructor(runtimeBasePath: string, compressionConfig?: Partial<CompressionConfig>) {
     this.index = new SimpleIndex(runtimeBasePath);
     this.compressor = new ContextCompressor(compressionConfig);
+    this.chapterRepo = new FileChapterRepo(runtimeBasePath);
   }
 
   async indexChapter(projectId: string, chapterId: string, content: string): Promise<void> {
@@ -49,47 +53,29 @@ export class SimpleIndexAdapter implements IndexPort {
 
   async packContext(projectId: string, chapterId: string): Promise<ContextPack> {
     // 获取项目元信息
-    const metaPath = path.join(this.index['runtimeBasePath'], projectId, 'meta', 'project.md');
+    const metaPath = path.join(this.chapterRepo.getRuntimeBasePath(), projectId, 'meta', 'project.md');
     let projectContext = '';
     try {
+      // 保留完整项目设定，避免全局背景被关键字过滤后丢失
       projectContext = await fs.readFile(metaPath, 'utf-8');
-      // 提取关键信息
-      const lines = projectContext.split('\n');
-      const keyLines = lines.filter(l =>
-        l.startsWith('# ') ||
-        l.includes('目标') ||
-        l.includes('读者') ||
-        l.includes('规模')
-      );
-      projectContext = keyLines.join('\n');
     } catch {}
 
     // 获取术语表
-    const glossaryPath = path.join(this.index['runtimeBasePath'], projectId, 'meta', 'glossary.md');
+    const glossaryPath = path.join(this.chapterRepo.getRuntimeBasePath(), projectId, 'meta', 'glossary.md');
     let glossary = '';
     try {
       glossary = await fs.readFile(glossaryPath, 'utf-8');
     } catch {}
 
     // 获取大纲
-    const outlinePath = path.join(this.index['runtimeBasePath'], projectId, 'outline', 'outline.md');
+    const outlinePath = path.join(this.chapterRepo.getRuntimeBasePath(), projectId, 'outline', 'outline.md');
     let outline = '';
     try {
       outline = await fs.readFile(outlinePath, 'utf-8');
     } catch {}
 
-    // 获取相关章节
-    const relatedChunks = await this.index.retrieve(projectId, chapterId, '', 10);
-
-    const relatedChapters: ContextChunk[] = relatedChunks.map(entry => ({
-      id: entry.id,
-      chapterId: entry.chapterId,
-      chapterTitle: entry.chapterTitle,
-      content: entry.content,
-      keywords: entry.keywords,
-      relevance: 0.8,
-      position: entry.position,
-    }));
+    // 前文记忆：优先使用“前文章节摘要”，不足时再回退为正文简要摘要
+    const relatedChapters = await this.buildChapterMemories(projectId, chapterId);
 
     return {
       projectContext,
@@ -174,7 +160,7 @@ export class SimpleIndexAdapter implements IndexPort {
   private async getChapterTitle(projectId: string, chapterId: string): Promise<string> {
     try {
       const chapterPath = path.join(
-        this.index['runtimeBasePath'],
+        this.chapterRepo.getRuntimeBasePath(),
         projectId,
         'chapters',
         `${chapterId}.md`
@@ -185,5 +171,102 @@ export class SimpleIndexAdapter implements IndexPort {
     } catch {
       return chapterId;
     }
+  }
+
+  private async buildChapterMemories(projectId: string, chapterId: string): Promise<ContextChunk[]> {
+    const chapters = await this.chapterRepo.findByProjectId(projectId);
+    if (chapters.length === 0) return [];
+
+    const normalizedCurrentId = this.normalizeChapterId(chapterId);
+    const currentChapter = chapters.find((chapter) => (
+      chapter.id === chapterId ||
+      chapter.number === chapterId ||
+      chapter.id === normalizedCurrentId ||
+      chapter.number === normalizedCurrentId
+    ));
+
+    const currentNumber = this.parseChapterNumber(currentChapter?.number || normalizedCurrentId);
+    const maxRelatedChapters = this.compressor.getConfig().maxRelatedChapters;
+
+    const candidates = chapters
+      .filter((chapter) => {
+        const chapterNumber = this.parseChapterNumber(chapter.number);
+        const hasContent = chapter.content && chapter.content.trim().length > 0;
+        if (!hasContent) return false;
+        if (!Number.isFinite(currentNumber)) {
+          return chapter.id !== chapterId && chapter.number !== chapterId;
+        }
+        return Number.isFinite(chapterNumber) && chapterNumber < currentNumber;
+      })
+      .slice(-maxRelatedChapters);
+
+    return candidates.map((chapter, index) => {
+      const memoryText = this.buildMemoryText(chapter);
+      return {
+        id: `${chapter.id}-memory`,
+        chapterId: chapter.id,
+        chapterTitle: chapter.title,
+        content: memoryText,
+        keywords: [],
+        relevance: 0.95 - index * 0.05,
+        position: 'middle',
+      };
+    });
+  }
+
+  private buildMemoryText(chapter: Chapter): string {
+    if (chapter.summary && this.hasSummaryContent(chapter.summary)) {
+      const parts: string[] = [];
+      if (chapter.summary.mainPoint) {
+        parts.push(`核心观点：${chapter.summary.mainPoint}`);
+      }
+      if (chapter.summary.keyPoints && chapter.summary.keyPoints.length > 0) {
+        parts.push(`关键要点：${chapter.summary.keyPoints.join('；')}`);
+      }
+      if (chapter.summary.conclusion) {
+        parts.push(`结论：${chapter.summary.conclusion}`);
+      }
+      return `章节：${chapter.title}\n${parts.join('\n')}`;
+    }
+
+    const simplified = this.buildFallbackSummary(chapter.content);
+    return `章节：${chapter.title}\n摘要：${simplified}`;
+  }
+
+  private hasSummaryContent(summary: ChapterSummary): boolean {
+    return Boolean(
+      (summary.mainPoint && summary.mainPoint.trim()) ||
+      (summary.keyPoints && summary.keyPoints.length > 0) ||
+      (summary.conclusion && summary.conclusion.trim())
+    );
+  }
+
+  private buildFallbackSummary(content: string): string {
+    const cleaned = content
+      .replace(/^#+\s.*$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (!cleaned) return '暂无可用前文摘要。';
+
+    const paragraphs = cleaned.split(/\n\n+/).map((item) => item.trim()).filter(Boolean);
+    if (paragraphs.length === 0) {
+      return cleaned.slice(0, 180);
+    }
+
+    const head = paragraphs[0].slice(0, 120);
+    const tail = paragraphs.length > 1 ? paragraphs[paragraphs.length - 1].slice(0, 120) : '';
+    return tail ? `${head} … ${tail}` : head;
+  }
+
+  private normalizeChapterId(rawChapterId: string): string {
+    const match = rawChapterId.match(/^ch-(\d+)/i);
+    if (!match) return rawChapterId;
+    return match[1].padStart(2, '0');
+  }
+
+  private parseChapterNumber(raw: string): number {
+    const normalized = this.normalizeChapterId(raw);
+    const parsed = parseInt(normalized, 10);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
   }
 }

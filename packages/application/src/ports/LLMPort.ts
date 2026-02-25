@@ -32,7 +32,7 @@ export interface LLMGenerateResult {
 
 // LLM 提供商配置
 export interface LLMProviderConfig {
-  provider: 'openai' | 'anthropic' | 'minimax' | 'kimi' | 'custom';
+  provider: 'openai' | 'anthropic' | 'minimax' | 'kimi' | 'azure' | 'custom';
   model: string;
   apiKey?: string;
   baseUrl?: string;

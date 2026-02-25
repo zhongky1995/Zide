@@ -5,7 +5,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 const api = {
   // ========== 项目操作 ==========
-  createProject: (config: { name: string; type: string; readers?: string; scale?: string; description?: string }) =>
+  createProject: (config: { name: string; type: string; readers?: string; scale?: string; description?: string; idea?: string }) =>
     ipcRenderer.invoke('project:create', config),
   getProjects: () => ipcRenderer.invoke('project:list'),
   getProject: (id: string) => ipcRenderer.invoke('project:get', id),
@@ -65,6 +65,12 @@ const api = {
   aiGetConfig: () => ipcRenderer.invoke('ai:getConfig'),
   aiUpdateConfig: (config: any) => ipcRenderer.invoke('ai:updateConfig', config),
   aiSwitchAdapter: (useReal: boolean) => ipcRenderer.invoke('ai:switchAdapter', useReal),
+  aiGetStrategy: () => ipcRenderer.invoke('ai:getStrategy'),
+  aiListStrategies: () => ipcRenderer.invoke('ai:listStrategies'),
+  aiSetStrategy: (strategyId: string) => ipcRenderer.invoke('ai:setStrategy', strategyId),
+  aiGetIntentConfig: (intent: string) => ipcRenderer.invoke('ai:getIntentConfig', intent),
+  aiChat: (projectId: string, message: string, chapterId?: string) =>
+    ipcRenderer.invoke('ai:chat', projectId, message, chapterId),
 
   // ========== 上下文操作 ==========
   packContext: (projectId: string, chapterId: string) =>
@@ -115,7 +121,7 @@ const api = {
     ipcRenderer.invoke('export:preview', projectId, format),
   getExportHistory: (projectId: string) => ipcRenderer.invoke('export:history', projectId),
   deleteExport: (filePath: string) => ipcRenderer.invoke('export:delete', filePath),
-  openExportDir: () => ipcRenderer.invoke('export:openDir'),
+  openExportDir: (projectId?: string) => ipcRenderer.invoke('export:openDir', projectId),
 
   // ========== 统计操作 ==========
   getProjectMetrics: (projectId: string) => ipcRenderer.invoke('metrics:project', projectId),

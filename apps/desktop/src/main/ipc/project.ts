@@ -1,18 +1,25 @@
 import { ipcMain } from 'electron';
-import * as path from 'path';
-import { app } from 'electron';
-import { FileProjectRepo } from '@zide/infrastructure';
+import { FileProjectRepo, MockLLMAdapter, RealLLMAdapter } from '@zide/infrastructure';
 import { CreateProjectUseCase } from '@zide/application';
-import { Project, ProjectType } from '@zide/domain';
-
-// 获取运行时基础路径
-function getRuntimeBasePath(): string {
-  return path.join(app.getPath('userData'), 'projects');
-}
+import { ProjectType, WritingTone } from '@zide/domain';
+import { getCurrentLLMAdapter, ensureLLMReadyForAction } from './ai';
+import { getRuntimeBasePath } from '../runtimePaths';
+import { ErrorCode } from './errors';
+import { runIpc } from './response';
 
 // 创建项目仓储实例
 function createProjectRepo(): FileProjectRepo {
   return new FileProjectRepo(getRuntimeBasePath());
+}
+
+function createIpcError(message: string, code: ErrorCode, details?: Record<string, unknown>): Error {
+  const error = new Error(message) as Error & {
+    code?: ErrorCode;
+    details?: Record<string, unknown>;
+  };
+  error.code = code;
+  error.details = details;
+  return error;
 }
 
 // 注册项目相关的 IPC 处理函数
@@ -24,10 +31,71 @@ export function registerProjectHandlers(): void {
     readers?: string;
     scale?: string;
     description?: string;
+    idea?: string;
   }) => {
-    try {
+    return runIpc(async () => {
       const repo = createProjectRepo();
       const useCase = new CreateProjectUseCase(repo);
+      let generatedMeta: {
+        background: string;
+        objectives: string;
+        constraints: string;
+        styleGuide: string;
+      } | null = null;
+      let generatedWritingTone: WritingTone | undefined;
+      let generatedTargetAudience: string | undefined;
+
+      // 如果有想法，先尝试 AI 生成全局设定；失败时明确报错，不再静默吞掉
+      if (config.idea?.trim()) {
+        ensureLLMReadyForAction('project:create-settings');
+
+        const llmAdapter = getCurrentLLMAdapter();
+        if (llmAdapter instanceof MockLLMAdapter) {
+          throw createIpcError(
+            '当前为模拟模型，无法生成项目全局设定。请先在设置中配置真实 AI 模型。',
+            ErrorCode.AI_CONFIG_INVALID,
+            { action: 'project:create-settings' }
+          );
+        }
+
+        if (llmAdapter instanceof RealLLMAdapter) {
+          const current = llmAdapter.getConfig();
+          if (!current.apiKey?.trim()) {
+            throw createIpcError(
+              '未配置 API Key，无法生成项目全局设定。请先在设置中完成模型配置。',
+              ErrorCode.AI_CONFIG_INVALID,
+              { action: 'project:create-settings', provider: current.provider }
+            );
+          }
+        }
+
+        const { GenerateSettingsUseCase } = await import('@zide/application');
+        const settingsUseCase = new GenerateSettingsUseCase(llmAdapter);
+        const settings = await settingsUseCase
+          .generate({
+            name: config.name,
+            type: config.type,
+            idea: config.idea,
+            targetReaders: config.readers,
+            targetScale: config.scale,
+          })
+          .catch((error: unknown) => {
+            throw createIpcError(
+              `AI 生成项目全局设定失败：${(error as Error).message}`,
+              ErrorCode.AI_GENERATE_FAILED,
+              { action: 'project:create-settings' }
+            );
+          });
+
+        generatedMeta = {
+          background: settings.background,
+          objectives: settings.objectives,
+          constraints: settings.constraints,
+          styleGuide: settings.style,
+        };
+        generatedWritingTone = settings.writingTone as WritingTone | undefined;
+        generatedTargetAudience = settings.targetAudience;
+      }
 
       const params = {
         name: config.name,
@@ -38,46 +106,52 @@ export function registerProjectHandlers(): void {
       };
 
       const project = await useCase.execute(params);
-      return { success: true, data: project };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '创建项目失败'
-      };
-    }
+
+      if (generatedMeta) {
+        await repo.update(project.id, {
+          meta: generatedMeta,
+          writingTone: generatedWritingTone,
+          targetAudience: generatedTargetAudience,
+        });
+      }
+
+      const latestProject = await repo.findById(project.id);
+      if (!latestProject) {
+        throw createIpcError('项目创建成功但读取失败', ErrorCode.PROJECT_CREATE_FAILED, { projectId: project.id });
+      }
+
+      return latestProject;
+    }, '创建项目失败', ErrorCode.PROJECT_CREATE_FAILED, {
+      channel: 'project:create',
+      args: { name: config.name, type: config.type },
+    });
   });
 
   // 获取项目列表
   ipcMain.handle('project:list', async () => {
-    try {
+    return runIpc(async () => {
       const repo = createProjectRepo();
-      const projects = await repo.findAll();
-      return { success: true, data: projects };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '获取项目列表失败'
-      };
-    }
+      return repo.findAll();
+    }, '获取项目列表失败', ErrorCode.UNKNOWN, {
+      channel: 'project:list',
+    });
   });
 
   // 获取单个项目
   ipcMain.handle('project:get', async (_event, projectId: string) => {
-    try {
+    return runIpc(async () => {
       const repo = createProjectRepo();
       const project = await repo.findById(projectId);
 
       if (!project) {
-        return { success: false, error: '项目不存在' };
+        throw new Error('项目不存在');
       }
 
-      return { success: true, data: project };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '获取项目失败'
-      };
-    }
+      return project;
+    }, '获取项目失败', ErrorCode.PROJECT_NOT_FOUND, {
+      channel: 'project:get',
+      args: { projectId },
+    });
   });
 
   // 更新项目
@@ -88,29 +162,24 @@ export function registerProjectHandlers(): void {
     targetScale: string;
     status: string;
   }>) => {
-    try {
+    return runIpc(async () => {
       const repo = createProjectRepo();
-      const project = await repo.update(projectId, params as any);
-      return { success: true, data: project };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '更新项目失败'
-      };
-    }
+      return repo.update(projectId, params as any);
+    }, '更新项目失败', ErrorCode.PROJECT_UPDATE_FAILED, {
+      channel: 'project:update',
+      args: { projectId, fields: Object.keys(params || {}) },
+    });
   });
 
   // 删除项目
   ipcMain.handle('project:delete', async (_event, projectId: string) => {
-    try {
+    return runIpc(async () => {
       const repo = createProjectRepo();
       await repo.delete(projectId);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '删除项目失败'
-      };
-    }
+      return { deleted: true };
+    }, '删除项目失败', ErrorCode.PROJECT_DELETE_FAILED, {
+      channel: 'project:delete',
+      args: { projectId },
+    });
   });
 }

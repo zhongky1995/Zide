@@ -7,6 +7,7 @@ import {
 import { OutlineRepoPort } from '@zide/application';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { FileChapterRepo } from './FileChapterRepo';
 
 export class FileOutlineRepo implements OutlineRepoPort {
   constructor(private readonly runtimeBasePath: string) {}
@@ -31,8 +32,12 @@ export class FileOutlineRepo implements OutlineRepoPort {
 
   async save(outline: Outline): Promise<void> {
     const outlinePath = this.getOutlinePath(outline.projectId);
+    await fs.mkdir(path.dirname(outlinePath), { recursive: true });
     const content = this.serializeOutline(outline);
     await fs.writeFile(outlinePath, content, 'utf-8');
+
+    // 保证大纲中的章节都具备可编辑的章节文件（最小可用桩文件）
+    await this.ensureChapterFiles(outline);
   }
 
   async update(projectId: string, params: UpdateOutlineParams): Promise<Outline> {
@@ -63,13 +68,6 @@ export class FileOutlineRepo implements OutlineRepoPort {
 
     await this.save(outline);
 
-    // 创建章节文件
-    const chaptersDir = this.getChaptersDir(projectId);
-    await fs.mkdir(chaptersDir, { recursive: true });
-    const chapterPath = path.join(chaptersDir, `${chapter.number}.md`);
-    const chapterContent = `# ${chapter.title}\n\n${chapter.target || ''}\n`;
-    await fs.writeFile(chapterPath, chapterContent, 'utf-8');
-
     return outline;
   }
 
@@ -83,7 +81,7 @@ export class FileOutlineRepo implements OutlineRepoPort {
       throw new Error(`Outline not found for project: ${projectId}`);
     }
 
-    const index = outline.chapters.findIndex((c) => c.id === chapterId);
+    const index = this.findChapterIndex(outline.chapters, chapterId);
     if (index === -1) {
       throw new Error(`Chapter not found: ${chapterId}`);
     }
@@ -95,10 +93,7 @@ export class FileOutlineRepo implements OutlineRepoPort {
 
     // 更新章节文件
     const chapterFile = outline.chapters[index];
-    const chapterPath = path.join(
-      this.getChaptersDir(projectId),
-      `${chapterFile.number}.md`
-    );
+    const chapterPath = path.join(this.getChaptersDir(projectId), `${chapterFile.number}.md`);
     let content = '';
     try {
       content = await fs.readFile(chapterPath, 'utf-8');
@@ -122,7 +117,7 @@ export class FileOutlineRepo implements OutlineRepoPort {
       throw new Error(`Outline not found for project: ${projectId}`);
     }
 
-    const chapter = outline.chapters.find((c) => c.id === chapterId);
+    const chapter = outline.chapters[this.findChapterIndex(outline.chapters, chapterId)];
     if (!chapter) {
       throw new Error(`Chapter not found: ${chapterId}`);
     }
@@ -136,7 +131,7 @@ export class FileOutlineRepo implements OutlineRepoPort {
       // 忽略文件不存在错误
     });
 
-    outline.chapters = outline.chapters.filter((c) => c.id !== chapterId);
+    outline.chapters = outline.chapters.filter((c) => c.id !== chapter.id);
     outline.updatedAt = new Date().toISOString();
 
     await this.save(outline);
@@ -151,16 +146,30 @@ export class FileOutlineRepo implements OutlineRepoPort {
 
     const reordered: OutlineChapter[] = [];
     for (const id of chapterIds) {
-      const chapter = outline.chapters.find((c) => c.id === id);
-      if (chapter) {
-        reordered.push(chapter);
-      }
+      const index = this.findChapterIndex(outline.chapters, id);
+      if (index === -1) continue;
+      reordered.push(outline.chapters[index]);
+    }
+
+    if (reordered.length !== outline.chapters.length) {
+      throw new Error('排序章节失败：输入章节列表与当前大纲不一致');
     }
 
     // 更新编号
+    const renamePairs: { fromNumber: string; toNumber: string }[] = [];
     reordered.forEach((chapter, index) => {
-      chapter.number = String(index + 1).padStart(2, '0');
+      const newNumber = String(index + 1).padStart(2, '0');
+      if (chapter.number !== newNumber) {
+        renamePairs.push({
+          fromNumber: chapter.number,
+          toNumber: newNumber,
+        });
+      }
+      chapter.number = newNumber;
+      chapter.id = newNumber;
     });
+
+    await this.renameChapterFiles(projectId, renamePairs);
 
     outline.chapters = reordered;
     outline.updatedAt = new Date().toISOString();
@@ -249,6 +258,7 @@ export class FileOutlineRepo implements OutlineRepoPort {
     const lines = content.split('\n');
     let status: 'draft' | 'confirmed' = 'draft';
     let generatedAt: string | undefined;
+    let lastChapterIndex = -1;
 
     for (const line of lines) {
       // 解析章节 - 支持 [○], [√], [✓], [x] 等标记
@@ -258,11 +268,19 @@ export class FileOutlineRepo implements OutlineRepoPort {
         // 完成状态：√, ✓, x, X 表示完成，○, 待定表示未完成
         const isCompleted = checked && /^[√✓xX]$/.test(checked.trim());
         chapters.push({
-          id: `ch-${number}`,
+          id: number,
           number,
           title: title.trim(),
           status: isCompleted ? 'completed' : 'pending',
         });
+        lastChapterIndex = chapters.length - 1;
+        continue;
+      }
+
+      // 解析章节目标（梗概）
+      const targetMatch = line.match(/^\s*-\s*目标:\s*(.+)$/);
+      if (targetMatch && lastChapterIndex >= 0) {
+        chapters[lastChapterIndex].target = targetMatch[1].trim();
         continue;
       }
 
@@ -287,5 +305,127 @@ export class FileOutlineRepo implements OutlineRepoPort {
       generatedAt,
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  // 根据大纲兜底创建章节文件，避免“已生成大纲但章节工作台为空”
+  private async ensureChapterFiles(outline: Outline): Promise<void> {
+    const chaptersDir = this.getChaptersDir(outline.projectId);
+    await fs.mkdir(chaptersDir, { recursive: true });
+    const chapterRepo = new FileChapterRepo(this.runtimeBasePath);
+    const expectedChapterNumbers = new Set(outline.chapters.map(ch => ch.number));
+
+    await this.archiveOrphanChapterFiles(outline.projectId, expectedChapterNumbers);
+
+    for (const chapter of outline.chapters) {
+      const chapterPath = path.join(chaptersDir, `${chapter.number}.md`);
+
+      try {
+        await fs.access(chapterPath);
+        // 已存在章节文件：同步标题/目标，正文与进度保留
+        await chapterRepo.updateByProjectId(outline.projectId, chapter.number, {
+          title: chapter.title,
+          target: chapter.target,
+        });
+        continue;
+      } catch {
+        // 文件不存在，创建最小章节文件
+      }
+
+      const now = new Date().toISOString();
+      const safeTarget = chapter.target?.trim() || '';
+      const contentLines = [
+        `# ${chapter.title}`,
+        '',
+        '---',
+        `number: ${chapter.number}`,
+        'status: todo',
+        'completion: 0',
+        ...(safeTarget ? [`target: ${safeTarget}`] : []),
+        'operationCount: 0',
+        `createdAt: ${now}`,
+        `updatedAt: ${now}`,
+        '---',
+        '',
+        ...(safeTarget ? [`> 写作目标：${safeTarget}`, ''] : []),
+      ];
+
+      await fs.writeFile(chapterPath, contentLines.join('\n'), 'utf-8');
+    }
+  }
+
+  // 将不在当前大纲中的章节文件归档，避免章节工作台出现陈旧数据
+  private async archiveOrphanChapterFiles(projectId: string, expectedChapterNumbers: Set<string>): Promise<void> {
+    const chapterDir = this.getChaptersDir(projectId);
+    let files: string[] = [];
+
+    try {
+      files = await fs.readdir(chapterDir);
+    } catch {
+      return;
+    }
+
+    const orphanFiles = files.filter((file) => (
+      file.endsWith('.md') && !expectedChapterNumbers.has(file.replace('.md', ''))
+    ));
+
+    if (orphanFiles.length === 0) return;
+
+    const archiveDir = path.join(chapterDir, '_orphan');
+    await fs.mkdir(archiveDir, { recursive: true });
+
+    const timestamp = Date.now();
+    for (const file of orphanFiles) {
+      const fromPath = path.join(chapterDir, file);
+      const toPath = path.join(archiveDir, `${timestamp}-${file}`);
+      await fs.rename(fromPath, toPath);
+    }
+  }
+
+  private findChapterIndex(chapters: OutlineChapter[], rawChapterId: string): number {
+    const normalized = this.normalizeChapterId(rawChapterId);
+    return chapters.findIndex((chapter) => (
+      chapter.id === rawChapterId ||
+      chapter.id === normalized ||
+      chapter.number === rawChapterId ||
+      chapter.number === normalized
+    ));
+  }
+
+  private normalizeChapterId(rawChapterId: string): string {
+    const match = rawChapterId.match(/^ch-(\d+)/i);
+    if (!match) return rawChapterId;
+    return match[1].padStart(2, '0');
+  }
+
+  // 章节重排后同步重命名文件，保证编号与文件名一致
+  private async renameChapterFiles(
+    projectId: string,
+    pairs: { fromNumber: string; toNumber: string }[]
+  ): Promise<void> {
+    if (pairs.length === 0) return;
+
+    const chapterDir = this.getChaptersDir(projectId);
+    const stagedMoves: { tempPath: string; finalPath: string }[] = [];
+    const stamp = Date.now();
+
+    for (let i = 0; i < pairs.length; i++) {
+      const pair = pairs[i];
+      const fromPath = path.join(chapterDir, `${pair.fromNumber}.md`);
+      const toPath = path.join(chapterDir, `${pair.toNumber}.md`);
+      const tempPath = path.join(chapterDir, `.__reorder_${stamp}_${i}.md`);
+
+      try {
+        await fs.access(fromPath);
+      } catch {
+        continue;
+      }
+
+      await fs.rename(fromPath, tempPath);
+      stagedMoves.push({ tempPath, finalPath: toPath });
+    }
+
+    for (const move of stagedMoves) {
+      await fs.rename(move.tempPath, move.finalPath);
+    }
   }
 }

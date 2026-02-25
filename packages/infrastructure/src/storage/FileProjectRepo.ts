@@ -45,6 +45,8 @@ export class FileProjectRepo implements ProjectRepoPort {
       chapterIds: [],
       glossaryCount: 0,
       outlineStatus: 'none',
+      writingTone: undefined,
+      targetAudience: undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -289,13 +291,33 @@ status: draft
       outline_status: project.outlineStatus,
       glossary_count: project.glossaryCount,
       chapter_ids: project.chapterIds,
+      writing_tone: project.writingTone,
+      target_audience: project.targetAudience,
       created_at: project.createdAt,
       updated_at: project.updatedAt,
+      // 保存全局设定
+      meta: project.meta,
     };
 
     let content = `# ${project.name}\n\n`;
     if (project.description) {
       content += `${project.description}\n\n`;
+    }
+
+    // 添加全局设定展示
+    if (project.meta) {
+      if (project.meta.background) {
+        content += `## 项目背景\n${project.meta.background}\n\n`;
+      }
+      if (project.meta.objectives) {
+        content += `## 项目目标\n${project.meta.objectives}\n\n`;
+      }
+      if (project.meta.constraints) {
+        content += `## 约束条件\n${project.meta.constraints}\n\n`;
+      }
+      if (project.meta.styleGuide) {
+        content += `## 风格指南\n${project.meta.styleGuide}\n\n`;
+      }
     }
 
     content += `\`\`\`yaml\n${yaml.stringify(frontmatter)}\n\`\`\``;
@@ -331,7 +353,10 @@ status: draft
       outlineStatus: (data.outline_status as 'none' | 'draft' | 'confirmed') || 'none',
       glossaryCount: (data.glossary_count as number) || 0,
       chapterIds: (data.chapter_ids as string[]) || [],
-      meta: {
+      writingTone: data.writing_tone as Project['writingTone'] | undefined,
+      targetAudience: data.target_audience as string | undefined,
+      // 读取全局设定
+      meta: (data.meta as any) || {
         background: '',
         objectives: '',
         constraints: '',

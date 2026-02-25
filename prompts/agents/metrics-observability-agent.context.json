@@ -1,0 +1,73 @@
+{
+  "agent_id": "metrics-observability-agent",
+  "agent_name": "Metrics Observability Agent",
+  "workflow_stage": "observability",
+  "stage_goal": "记录关键操作并提供项目/全局统计视图",
+  "target_users": [
+    "需要追踪生产效率和稳定性的运营/测试/负责人"
+  ],
+  "dependencies": [
+    "MetricsUseCases",
+    "MetricsPort",
+    "FileMetricsAdapter"
+  ],
+  "input_contract": [
+    {
+      "field": "projectId",
+      "type": "string",
+      "constraints": "project metrics 与 log 必填"
+    },
+    {
+      "field": "operationType",
+      "type": "enum",
+      "constraints": "log 时必填，OperationType 枚举"
+    },
+    {
+      "field": "status",
+      "type": "enum",
+      "constraints": "success|failed|pending"
+    },
+    {
+      "field": "duration",
+      "type": "number",
+      "constraints": "毫秒，log 时必填"
+    },
+    {
+      "field": "metadata",
+      "type": "object",
+      "constraints": "可选"
+    },
+    {
+      "field": "errorCode",
+      "type": "string",
+      "constraints": "失败时可选"
+    }
+  ],
+  "output_contract": {
+    "format": "metrics-object-or-list",
+    "required_sections": [
+      "project metrics",
+      "global metrics list",
+      "log write ack"
+    ],
+    "limits": [
+      "日志写入失败必须可见",
+      "聚合统计需与日志口径一致"
+    ]
+  },
+  "risk_notes": [
+    "日志缺失导致指标失真",
+    "错误码缺失影响排障定位"
+  ],
+  "assumptions": [
+    "metrics 存储按项目维度分隔"
+  ],
+  "complexity": {
+    "scope": 2,
+    "dependency": 2,
+    "risk": 2,
+    "ambiguity": 1,
+    "total": 7,
+    "mode": "lean"
+  }
+}

@@ -91,8 +91,9 @@ export class SnapshotUseCases {
     projectId: string;
     restoredChapters: string[];
   }> {
-    const latest = await this.snapshotRepo.findLatest(projectId, SnapshotType.CHAPTER);
-    if (!latest) {
+    const chapterSnapshots = await this.snapshotRepo.findChapterSnapshots(projectId, chapterId);
+    const latest = chapterSnapshots[0];
+    if (!latest?.id) {
       throw new SnapshotNotFoundError('latest');
     }
 

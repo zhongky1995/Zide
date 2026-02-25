@@ -1,4 +1,19 @@
 // API类型定义
+export interface ProjectSettings {
+  background?: string;
+  goals?: string;
+  constraints?: string;
+  style?: string;
+}
+
+export interface ProjectMetaSettings {
+  background: string;
+  objectives: string;
+  constraints: string;
+  styleGuide: string;
+  targetAudience?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -10,6 +25,8 @@ export interface Project {
   outlineStatus: string;
   glossaryCount: number;
   chapterIds: string[];
+  settings?: ProjectSettings;
+  meta?: ProjectMetaSettings;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,6 +37,7 @@ export interface CreateProjectParams {
   readers?: string;
   scale?: string;
   description?: string;
+  idea?: string;
 }
 
 export interface Chapter {

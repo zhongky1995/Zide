@@ -12,6 +12,74 @@ export class MockLLMAdapter implements LLMPort {
   };
 
   async generate(params: LLMGenerateParams): Promise<LLMGenerateResult> {
+    if (params.chapter.id === 'settings-generation') {
+      const content = JSON.stringify({
+        background: '基于用户想法生成的项目背景（Mock）',
+        objectives: '明确项目目标并形成可执行章节结构（Mock）',
+        constraints: '保持术语一致，避免偏题，确保结构连贯（Mock）',
+        style: '专业、清晰、结构化表达（Mock）',
+        targetAudience: '通用专业读者',
+        writingTone: 'professional',
+      });
+
+      return {
+        content,
+        model: this.config.model,
+        tokens: Math.ceil(content.length / 4),
+        finishReason: 'stop',
+      };
+    }
+
+    if (params.chapter.id === 'outline-generation') {
+      const requestedCountMatch = params.chapter.content.match(/用户倾向章节数：(\d+)/);
+      const requestedCount = requestedCountMatch ? parseInt(requestedCountMatch[1], 10) : 0;
+      const outlinePool = [
+        {
+          title: '项目背景与问题定义',
+          target: '说明背景、现状与关键问题，明确本项目的边界与目标。',
+        },
+        {
+          title: '核心矛盾与需求拆解',
+          target: '拆解核心矛盾与关键需求，给出优先级和约束条件。',
+        },
+        {
+          title: '方案设计与路径选择',
+          target: '提出可选方案并完成对比，明确推荐路径及依据。',
+        },
+        {
+          title: '实施步骤与资源安排',
+          target: '按阶段拆分实施计划，定义角色分工、资源与时间安排。',
+        },
+        {
+          title: '风险控制与里程碑',
+          target: '识别关键风险并给出应对策略，设置阶段里程碑与验收点。',
+        },
+        {
+          title: '结论与下一步行动',
+          target: '总结核心结论，明确可立即执行的下一步动作。',
+        },
+        {
+          title: '复盘与迭代建议',
+          target: '沉淀复盘要点，提出后续优化与迭代方向。',
+        },
+        {
+          title: '附录与术语说明',
+          target: '补充术语定义、参考资料与必要附件信息。',
+        },
+      ];
+      const count = Number.isFinite(requestedCount) && requestedCount > 0
+        ? Math.min(Math.max(requestedCount, 3), outlinePool.length)
+        : 6;
+      const content = JSON.stringify(outlinePool.slice(0, count));
+
+      return {
+        content,
+        model: this.config.model,
+        tokens: Math.ceil(content.length / 4),
+        finishReason: 'stop',
+      };
+    }
+
     // 构建提示词
     const prompt = this.buildPrompt(params);
 

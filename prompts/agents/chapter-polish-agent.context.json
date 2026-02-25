@@ -2,36 +2,48 @@
   "agent_id": "chapter-polish-agent",
   "agent_name": "Chapter Polish Agent",
   "workflow_stage": "chapter-generation",
-  "stage_goal": "输出完整替换版润色结果，提高可读性与规范性",
+  "stage_goal": "以替换模式优化语言质量和格式规范",
   "target_users": [
-    "需要交付级文字质量的用户"
+    "交付前需要统一文风和可读性的用户"
   ],
   "dependencies": [
-    "GenerateContentUseCase",
-    "LLMPort.generate",
-    "ChapterRepo.updateContent"
+    "RealLLMAdapter.getSystemPrompt",
+    "ChapterIntent.POLISH",
+    "GenerateContentUseCase replace mode"
   ],
   "input_contract": [
-    { "field": "context.projectContext", "type": "string", "constraints": "可空" },
-    { "field": "context.outline", "type": "string", "constraints": "可空" },
-    { "field": "context.glossary", "type": "string", "constraints": "可空" },
-    { "field": "chapter.title", "type": "string", "constraints": "必填" },
-    { "field": "chapter.content", "type": "string", "constraints": "建议非空" },
-    { "field": "chapter.target", "type": "string", "constraints": "可空" },
-    { "field": "intent", "type": "enum", "constraints": "必须为 polish" }
+    {
+      "field": "chapter.content",
+      "type": "string",
+      "constraints": "建议非空"
+    },
+    {
+      "field": "context.glossary",
+      "type": "string",
+      "constraints": "可选"
+    },
+    {
+      "field": "intent",
+      "type": "enum",
+      "constraints": "必须为 polish"
+    }
   ],
   "output_contract": {
     "format": "markdown-body",
-    "required_sections": ["full_chapter_content"],
-    "limits": ["长度约为原文90%-115%", "禁止新增事实", "禁止解释性输出"]
+    "required_sections": [
+      "full_chapter_content"
+    ],
+    "limits": [
+      "长度建议原文 90%-115%",
+      "禁止新增事实",
+      "禁止解释性输出"
+    ]
   },
   "risk_notes": [
-    "润色过度可能改变原意",
-    "返回不完整会导致替换损坏"
+    "过度润色导致语义漂移"
   ],
   "assumptions": [
-    "事实层正确性由原文和上游保障",
-    "本代理只负责表达质量"
+    "原文事实正确性由上游保障"
   ],
   "complexity": {
     "scope": 2,

@@ -53,6 +53,13 @@ export interface IndexPort {
   // 打包上下文（用于 AI 生成）
   packContext(projectId: string, chapterId: string): Promise<ContextPack>;
 
+  // 打包压缩后的上下文（用于大项目，支持token预算控制）
+  // 返回压缩结果包含压缩比例等信息
+  packCompressedContext(projectId: string, chapterId: string, tokenBudget?: number): Promise<{
+    contextPack: ContextPack;
+    compressionResult: any;
+  }>;
+
   // 获取索引统计
   getStats(projectId: string): Promise<{
     totalChunks: number;

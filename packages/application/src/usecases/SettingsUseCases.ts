@@ -18,8 +18,8 @@ export class ProjectSettingsUseCase implements ProjectSettingsPort {
       projectId,
       meta: project.meta,
       glossaryCount: project.glossaryCount,
-      writingTone: (project as any).writingTone,
-      targetAudience: (project as any).targetAudience,
+      writingTone: project.writingTone,
+      targetAudience: project.targetAudience,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     };
@@ -48,12 +48,7 @@ export class ProjectSettingsUseCase implements ProjectSettingsPort {
       throw new Error(`Project not found: ${projectId}`);
     }
 
-    await this.projectRepo.update(projectId, {
-      meta: { ...project.meta },
-    } as any);
-
-    // 注意：writingTone 存储在扩展字段中
-    (project as any).writingTone = tone;
+    await this.projectRepo.update(projectId, { writingTone: tone });
 
     return this.getSettings(projectId);
   }
@@ -65,7 +60,7 @@ export class ProjectSettingsUseCase implements ProjectSettingsPort {
       throw new Error(`Project not found: ${projectId}`);
     }
 
-    (project as any).targetAudience = audience;
+    await this.projectRepo.update(projectId, { targetAudience: audience });
 
     return this.getSettings(projectId);
   }
