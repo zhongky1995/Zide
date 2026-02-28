@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zide UI Preview v2 - 项目页</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="projects">
+  <main class="app">
+    <header class="topbar card">
+      <div class="brand">
+        <span class="logo"></span>
+        <div>
+          <h1>Zide Workbench</h1>
+          <p>Web 多页交互原型 · 项目主页</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a class="active" href="./index.html">项目</a>
+        <a href="./workspace.html">工作台</a>
+        <a href="./settings.html">AI设置</a>
+      </nav>
+    </header>
+
+    <section class="title-row card">
+      <div class="header-line">
+        <div>
+          <h2>项目总览</h2>
+          <p>这里负责新建项目、浏览项目和进入工作台，不混入底层 AI 参数。</p>
+        </div>
+        <div class="action-row compact">
+          <button id="createProjectBtn" class="btn btn-primary" type="button">+ 新建项目</button>
+        </div>
+      </div>
+      <div id="globalKpi" class="kpi-grid"></div>
+    </section>
+
+    <section class="card section-card">
+      <div class="list-head">
+        <h3>我的项目</h3>
+        <div class="list-tools">
+          <input id="projectSearchInput" class="search-input" type="search" placeholder="搜索项目名称" />
+        </div>
+      </div>
+      <div id="projectGrid" class="project-grid"></div>
+      <div id="projectEmpty" class="empty hidden">
+        <h4>暂无项目</h4>
+        <p>点击右上角“新建项目”即可开始。</p>
+      </div>
+    </section>
+
+    <section class="card section-card" id="projectQuickStart">
+      <h3>建议的下一步</h3>
+      <ul class="hint-list">
+        <li>1. 新建项目后先生成大纲，再进入章节工作台。</li>
+        <li>2. 写作中每次关键改动都创建快照，避免回退成本过高。</li>
+        <li>3. 交付前先跑“整体检查”，再导出最终文件。</li>
+      </ul>
+    </section>
+
+    <div id="createModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
+      <div class="modal-content card">
+        <div class="modal-head">
+          <h3 id="createModalTitle">新建项目</h3>
+          <button id="closeCreateModalBtn" class="icon-btn" type="button" aria-label="关闭">x</button>
+        </div>
+        <form id="createProjectForm" class="form-grid">
+          <div class="field">
+            <label for="projectName">项目名称 *</label>
+            <input id="projectName" name="name" required maxlength="60" placeholder="例如：企业知识库改造方案" />
+          </div>
+          <div class="field">
+            <label for="projectType">项目类型</label>
+            <select id="projectType" name="type">
+              <option value="proposal">方案</option>
+              <option value="report">报告</option>
+              <option value="research">研究报告</option>
+              <option value="novel">小说</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label for="projectIdea">核心想法 *</label>
+            <textarea id="projectIdea" name="idea" rows="3" required placeholder="描述写作目标、核心观点、约束条件"></textarea>
+          </div>
+          <div class="field full">
+            <label for="projectDescription">项目描述</label>
+            <textarea id="projectDescription" name="description" rows="2" placeholder="补充简要描述"></textarea>
+          </div>
+          <div class="field">
+            <label for="projectReaders">目标读者</label>
+            <input id="projectReaders" name="readers" placeholder="例如：技术团队负责人" />
+          </div>
+          <div class="field">
+            <label for="projectScale">目标规模</label>
+            <input id="projectScale" name="scale" placeholder="例如：8万字" />
+          </div>
+          <div class="action-row full">
+            <button id="cancelCreateBtn" class="btn btn-ghost" type="button">取消</button>
+            <button class="btn btn-primary" type="submit">创建并进入工作台</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <p class="foot-note">这一版是完整交互原型：可新建、搜索、进入项目，不只是视觉稿。</p>
+  </main>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

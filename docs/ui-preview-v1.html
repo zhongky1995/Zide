@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zide UI Preview v1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f7f6;
+      --bg-card: #ffffff;
+      --ink: #113038;
+      --muted: #5a7077;
+      --line: #d5e1df;
+      --teal: #0f766e;
+      --teal-soft: #d8efec;
+      --orange: #ea580c;
+      --orange-soft: #ffe7d8;
+      --ok: #18864f;
+      --shadow: 0 16px 32px rgba(17, 48, 56, 0.09);
+      --radius-xl: 20px;
+      --radius-md: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 12% 18%, #d8efec 0, transparent 42%),
+        radial-gradient(circle at 86% 6%, #ffe7d8 0, transparent 36%),
+        linear-gradient(140deg, #f6faf8 0%, #eef5f8 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(to right, rgba(17, 48, 56, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(17, 48, 56, 0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: radial-gradient(circle at center, black 12%, transparent 80%);
+      opacity: 0.5;
+    }
+
+    .app-shell {
+      max-width: 1240px;
+      margin: 28px auto 48px;
+      padding: 0 20px 36px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
+      background: linear-gradient(130deg, var(--teal), #1da394 58%, #47c3b2);
+      position: relative;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+    }
+
+    .logo::after {
+      content: "Z";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      font: 700 22px/1 "Space Grotesk", sans-serif;
+      color: #ecfffa;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font: 700 24px/1.2 "Space Grotesk", "Noto Sans SC", sans-serif;
+      letter-spacing: 0.3px;
+    }
+
+    .brand p {
+      margin: 2px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      height: 38px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      padding: 0 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+      background: #ffffff;
+      border-color: var(--line);
+      color: var(--ink);
+    }
+
+    .btn-primary {
+      background: linear-gradient(120deg, var(--teal), #168f84);
+      color: #f7fffd;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.25);
+    }
+
+    .overview {
+      padding: 20px 22px;
+      margin-bottom: 16px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px 18px;
+    }
+
+    .overview h2 {
+      margin: 0;
+      font: 700 22px/1.25 "Space Grotesk", "Noto Sans SC", sans-serif;
+    }
+
+    .overview p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .chip {
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .chip-teal {
+      background: var(--teal-soft);
+      color: var(--teal);
+    }
+
+    .chip-orange {
+      background: var(--orange-soft);
+      color: var(--orange);
+    }
+
+    .kpi-grid {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .kpi {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: #fbfffe;
+      padding: 10px 12px;
+    }
+
+    .kpi-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .kpi-value {
+      font: 700 24px/1.1 "Space Grotesk", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+    }
+
+    .project-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .project-card {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: linear-gradient(150deg, #ffffff 0%, #f5fcfa 100%);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .project-card:hover {
+      border-color: #85b7b1;
+      transform: translateY(-2px);
+    }
+
+    .project-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .project-title {
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .project-type {
+      font-size: 11px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: #e4f4f1;
+      color: #0f6a63;
+      border: 1px solid #cceae5;
+    }
+
+    .project-card p {
+      margin: 10px 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+      min-height: 40px;
+    }
+
+    .project-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: var(--bg-card);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .chapter-list {
+      list-style: none;
+      margin: 0;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .chapter-item {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fcfffe;
+      padding: 10px 11px;
+    }
+
+    .chapter-item.active {
+      border-color: #5ea79f;
+      background: #eaf7f5;
+    }
+
+    .chapter-item h4 {
+      margin: 0 0 4px;
+      font-size: 14px;
+    }
+
+    .chapter-item p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .editor-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .intent-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .intent {
+      border: 1px solid #d2e8e5;
+      background: #f6fdfc;
+      color: #105f59;
+      border-radius: 999px;
+      height: 30px;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .intent-highlight {
+      background: linear-gradient(120deg, var(--teal), #1a9387);
+      color: #f8fffd;
+      border: none;
+    }
+
+    .editor-canvas {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 12px;
+    }
+
+    .manuscript {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      background: #fbfffe;
+      min-height: 280px;
+    }
+
+    .manuscript h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 17px;
+    }
+
+    .manuscript p {
+      margin: 0 0 10px;
+      line-height: 1.78;
+      color: #274750;
+      font-size: 14px;
+    }
+
+    .insight {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: #fffdfa;
+      padding: 13px;
+    }
+
+    .insight h4 {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+
+    .timeline {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline li {
+      border-left: 2px solid #f4c8ad;
+      padding-left: 10px;
+    }
+
+    .timeline strong {
+      display: block;
+      font-size: 12px;
+      color: #a24516;
+      margin-bottom: 2px;
+    }
+
+    .timeline span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .settings {
+      padding: 18px 22px;
+    }
+
+    .settings h3 {
+      margin: 0 0 14px;
+      font-size: 18px;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .field input,
+    .field select {
+      height: 38px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      padding: 0 11px;
+      font: inherit;
+      color: var(--ink);
+      background: #fcfffe;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .save-row {
+      margin-top: 14px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .foot-note {
+      margin-top: 12px;
+      color: #3f6067;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .reveal {
+      animation: rise 0.65s ease both;
+    }
+
+    .project-grid .project-card:nth-child(1) { animation-delay: 0.05s; }
+    .project-grid .project-card:nth-child(2) { animation-delay: 0.12s; }
+    .project-grid .project-card:nth-child(3) { animation-delay: 0.18s; }
+    .project-grid .project-card {
+      animation: rise 0.65s ease both;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1080px) {
+      .project-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .editor-canvas {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app-shell {
+        margin-top: 14px;
+        padding: 0 12px 20px;
+      }
+
+      .topbar,
+      .overview,
+      .settings {
+        padding: 14px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .overview {
+        grid-template-columns: 1fr;
+      }
+
+      .chips,
+      .save-row {
+        justify-content: flex-start;
+      }
+
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .project-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar card reveal">
+      <div class="brand">
+        <span class="logo"></span>
+        <div>
+          <h1>Zide Workbench</h1>
+          <p>Web-first UI Preview · v1</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="btn btn-ghost">项目列表</button>
+        <button class="btn btn-ghost">检查中心</button>
+        <button class="btn btn-primary">+ 新建项目</button>
+      </div>
+    </header>
+
+    <section class="overview card reveal">
+      <div>
+        <h2>长文生产工作台（样式预览）</h2>
+        <p>目标方向：更清晰的信息层级 + 更强的“正在推进项目”感。</p>
+      </div>
+      <div class="chips">
+        <span class="chip chip-teal">可回滚</span>
+        <span class="chip chip-teal">可检查</span>
+        <span class="chip chip-orange">可交付</span>
+      </div>
+      <div class="kpi-grid">
+        <article class="kpi">
+          <div class="kpi-label">总章节</div>
+          <div class="kpi-value">24</div>
+        </article>
+        <article class="kpi">
+          <div class="kpi-label">已完成</div>
+          <div class="kpi-value">15</div>
+        </article>
+        <article class="kpi">
+          <div class="kpi-label">总字数</div>
+          <div class="kpi-value">82K</div>
+        </article>
+        <article class="kpi">
+          <div class="kpi-label">AI 采纳率</div>
+          <div class="kpi-value">71%</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="project-grid">
+      <article class="project-card">
+        <div class="project-head">
+          <span class="project-title">企业知识库改造方案</span>
+          <span class="project-type">方案</span>
+        </div>
+        <p>聚焦中型团队，目标是把文档检索和标准流程固化成可执行体系。</p>
+        <div class="project-meta"><span>12 章节</span><span>今天更新</span></div>
+      </article>
+      <article class="project-card">
+        <div class="project-head">
+          <span class="project-title">AIGC 行业趋势报告</span>
+          <span class="project-type">研究</span>
+        </div>
+        <p>追踪 2025-2026 的模型落地路径，强调商业化验证和风险边界。</p>
+        <div class="project-meta"><span>18 章节</span><span>2 小时前</span></div>
+      </article>
+      <article class="project-card">
+        <div class="project-head">
+          <span class="project-title">科幻长篇《星港回声》</span>
+          <span class="project-type">小说</span>
+        </div>
+        <p>已进入中后段剧情，重点监控设定一致性和人物弧线闭环。</p>
+        <div class="project-meta"><span>31 章节</span><span>昨天更新</span></div>
+      </article>
+    </section>
+
+    <section class="workspace">
+      <aside class="panel">
+        <div class="panel-head">
+          <h3 class="panel-title">章节工作台</h3>
+          <span class="chip chip-teal">进行中</span>
+        </div>
+        <ul class="chapter-list">
+          <li class="chapter-item"><h4>第 01 章 问题界定</h4><p>完成度 100% · 3,214 字</p></li>
+          <li class="chapter-item"><h4>第 02 章 现状与瓶颈</h4><p>完成度 92% · 5,048 字</p></li>
+          <li class="chapter-item active"><h4>第 03 章 目标架构</h4><p>完成度 66% · 2,927 字</p></li>
+          <li class="chapter-item"><h4>第 04 章 迁移策略</h4><p>完成度 34% · 1,405 字</p></li>
+          <li class="chapter-item"><h4>第 05 章 实施路线图</h4><p>完成度 8% · 268 字</p></li>
+        </ul>
+      </aside>
+
+      <div class="panel">
+        <div class="editor-head">
+          <div>
+            <h3 class="panel-title">第 03 章 目标架构</h3>
+            <p style="margin: 3px 0 0; color: var(--muted); font-size: 12px;">章节 03 · 预计 5,000 字 · 当前 2,927 字</p>
+          </div>
+          <div class="intent-group">
+            <button class="intent intent-highlight">续写</button>
+            <button class="intent">扩写</button>
+            <button class="intent">重写</button>
+            <button class="intent">补论证</button>
+            <button class="intent">润色</button>
+          </div>
+        </div>
+        <div class="editor-canvas">
+          <article class="manuscript">
+            <h3>3.2 架构分层原则</h3>
+            <p>在目标架构里，最关键的是将“内容生产流程”与“模型调用细节”解耦。前者稳定、后者可替换，才能在后续模型升级时不动业务核心。</p>
+            <p>建议采用统一任务编排层，向上暴露固定操作语义（续写、扩写、重写等），向下按策略路由到不同模型。这样可以保证 UI 的可预测性，同时保留成本和质量优化空间。</p>
+            <p>为降低运维风险，所有跨章节 AI 操作必须落日志并可回滚。每次生成都记录输入摘要、上下文片段、模型参数和输出版本号，形成可追溯链路。</p>
+          </article>
+          <aside class="insight">
+            <h4>执行快照</h4>
+            <ul class="timeline">
+              <li><strong>14:20 · AI 续写</strong><span>新增 426 字，建议采纳率 78%</span></li>
+              <li><strong>14:05 · 术语检查</strong><span>发现 2 处“编排层/调度层”混用</span></li>
+              <li><strong>13:50 · 保存草稿</strong><span>已自动创建章节快照 #39</span></li>
+            </ul>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings card reveal">
+      <h3>AI 设置（样式预览）</h3>
+      <div class="settings-grid">
+        <div class="field">
+          <label>模型提供商</label>
+          <select>
+            <option>OpenAI</option>
+            <option>Anthropic</option>
+            <option>MiniMax</option>
+            <option>Kimi</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>模型名称</label>
+          <input value="gpt-4.1" />
+        </div>
+        <div class="field full">
+          <label>API 地址</label>
+          <input value="https://api.openai.com/v1" />
+        </div>
+      </div>
+      <div class="save-row">
+        <button class="btn btn-ghost">测试连接</button>
+        <button class="btn btn-primary">保存配置</button>
+      </div>
+    </section>
+
+    <p class="foot-note">这是纯静态视觉稿（HTML + CSS），用于你先确认整体风格；确认后再替换现有 React 前端。</p>
+  </main>
+</body>
+</html>

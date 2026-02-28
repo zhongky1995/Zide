@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zide UI Preview v2 - 工作台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="workspace">
+  <main class="app">
+    <header class="topbar card">
+      <div class="brand">
+        <span class="logo"></span>
+        <div>
+          <h1>Zide Workbench</h1>
+          <p>Web 多页交互原型 · 核心工作台</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="./index.html">项目</a>
+        <a class="active" href="./workspace.html">工作台</a>
+        <a href="./settings.html">AI设置</a>
+      </nav>
+    </header>
+
+    <section id="workspaceHeader" class="title-row card"></section>
+
+    <section class="tabs card">
+      <div class="tab-list" role="tablist" aria-label="工作台标签">
+        <button class="tab-btn active" data-tab="outline" type="button">大纲管理</button>
+        <button class="tab-btn" data-tab="chapters" type="button">章节工作台</button>
+        <button class="tab-btn" data-tab="metrics" type="button">项目统计</button>
+        <button class="tab-btn" data-tab="check" type="button">整体检查</button>
+        <button class="tab-btn" data-tab="export" type="button">导出中心</button>
+      </div>
+
+      <div class="tab-panel" data-panel="outline">
+        <div class="panel-toolbar">
+          <h3>大纲管理</h3>
+          <div class="action-row compact">
+            <button id="generateOutlineBtn" class="btn btn-ghost" type="button">AI 生成大纲</button>
+            <button id="addChapterBtn" class="btn btn-primary" type="button">添加章节</button>
+          </div>
+        </div>
+        <div id="outlineStatus" class="banner"></div>
+        <div id="outlineList" class="outline-list"></div>
+      </div>
+
+      <div class="tab-panel hidden" data-panel="chapters">
+        <div class="layout">
+          <aside class="panel">
+            <div class="panel-head">
+              <h3>章节列表</h3>
+              <span id="chapterCountTag" class="tag"></span>
+            </div>
+            <ul id="chapterSidebarList" class="chapter-list"></ul>
+          </aside>
+
+          <section class="panel">
+            <div id="chapterEditorHeader" class="panel-head"></div>
+            <div class="editor-toolbar">
+              <div class="intent-wrap">
+                <button class="intent main" data-intent="continue" type="button">续写</button>
+                <button class="intent" data-intent="expand" type="button">扩写</button>
+                <button class="intent" data-intent="rewrite" type="button">重写</button>
+                <button class="intent" data-intent="add_argument" type="button">补论证</button>
+                <button class="intent" data-intent="polish" type="button">润色</button>
+                <button class="intent" data-intent="simplify" type="button">简化</button>
+              </div>
+              <div class="action-row compact">
+                <button id="saveChapterBtn" class="btn btn-primary" type="button">保存章节</button>
+                <button id="snapshotBtn" class="btn btn-ghost" type="button">创建快照</button>
+              </div>
+            </div>
+            <div class="editor-main">
+              <article class="manuscript">
+                <textarea id="chapterEditor" class="editor-textarea" placeholder="选择章节开始写作..."></textarea>
+              </article>
+              <aside class="side-box">
+                <h4>执行记录</h4>
+                <ul id="chapterTimeline" class="timeline"></ul>
+                <p class="note">工作台只保留写作动作，底层参数收口到设置页。</p>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="tab-panel hidden" data-panel="metrics">
+        <div class="panel-toolbar">
+          <h3>项目统计</h3>
+          <button id="refreshMetricsBtn" class="btn btn-ghost" type="button">刷新统计</button>
+        </div>
+        <div id="metricsGrid" class="kpi-grid"></div>
+      </div>
+
+      <div class="tab-panel hidden" data-panel="check">
+        <div class="panel-toolbar">
+          <h3>整体检查</h3>
+          <button id="runCheckBtn" class="btn btn-primary" type="button">运行检查</button>
+        </div>
+        <div id="checkHint" class="banner muted">点击“运行检查”开始分析当前项目。</div>
+        <div id="issueList" class="issue-list"></div>
+      </div>
+
+      <div class="tab-panel hidden" data-panel="export">
+        <div class="export-grid">
+          <section class="panel section-panel">
+            <div class="panel-head">
+              <h3>导出项目</h3>
+            </div>
+            <div class="section-body">
+              <div class="field">
+                <label for="exportFormat">导出格式</label>
+                <select id="exportFormat">
+                  <option value="md">Markdown (.md)</option>
+                  <option value="html">HTML (.html)</option>
+                  <option value="pdf">PDF (.pdf)</option>
+                </select>
+              </div>
+              <div class="action-row">
+                <button id="exportBtn" class="btn btn-primary" type="button">导出项目</button>
+                <button id="previewBtn" class="btn btn-ghost" type="button">预览内容</button>
+                <button id="openDirBtn" class="btn btn-ghost" type="button">打开目录</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel section-panel">
+            <div class="panel-head">
+              <h3>导出历史</h3>
+            </div>
+            <ul id="exportHistory" class="history-list"></ul>
+          </section>
+        </div>
+        <section class="panel section-panel">
+          <div class="panel-head">
+            <h3>预览</h3>
+          </div>
+          <pre id="exportPreview" class="preview-box">暂未生成预览</pre>
+        </section>
+      </div>
+    </section>
+
+    <p class="foot-note">这一页覆盖了大纲、章节、统计、检查、导出的完整交互闭环。</p>
+  </main>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
