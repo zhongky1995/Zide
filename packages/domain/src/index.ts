@@ -8,6 +8,7 @@ export * from './entities/CheckIssue';
 export * from './entities/ExportJob';
 export * from './entities/OperationLog';
 export * from './entities/AIStrategy';
+export * from './novel';
 
 // 领域服务导出
 export * from './services/ProjectService';

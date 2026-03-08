@@ -17,18 +17,33 @@ import {
   exportApi,
   metricsApi,
   outlineApi,
+  loreMemoryApi,
+  manuscriptApi,
+  plotBoardApi,
   projectApi,
+  retconApi,
   snapshotApi,
+  storyBibleApi,
   type ApiErrorDetail,
 } from './services/api';
 import type {
   AIOperation,
+  CandidateDraft,
+  ChapterGoal,
   Chapter,
   ChapterSummary,
+  ContinuityReport,
+  MemoryCard,
+  ManuscriptReadiness,
+  NovelTaskExecutionResult,
+  NovelTaskType,
   Outline,
   OutlineChapter,
+  PlotBoardSnapshot,
   Project,
   ProjectMetrics,
+  RetconDecision,
+  StoryBible,
 } from './types/api';
 
 interface LLMConfig {
@@ -73,6 +88,16 @@ interface Toast {
 
 type AppNav = 'projects' | 'workspace' | 'settings';
 type WorkspaceTab = 'outline' | 'chapters' | 'metrics' | 'check' | 'export';
+type NovelModuleTab =
+  | 'overview'
+  | 'story_bible'
+  | 'plot_board'
+  | 'scene_sprint'
+  | 'continuity_review'
+  | 'retcon_flow'
+  | 'lore_memory'
+  | 'manuscript_center'
+  | 'run_console';
 
 function Loading(): JSX.Element {
   return (
@@ -89,13 +114,13 @@ function AppTopbar({ active }: { active: AppNav }): JSX.Element {
       <div className="brand">
         <span className="logo" />
         <div>
-          <h1>Zide Workbench</h1>
-          <p>长文生产系统 · 交互版前端</p>
+          <h1>Zide Novel OS</h1>
+          <p>长篇小说 AI 创作系统 · V3 过渡骨架</p>
         </div>
       </div>
       <nav className="nav-pills" aria-label="主导航">
         <Link to="/" className={active === 'projects' ? 'active' : ''}>项目</Link>
-        <Link to="/project" className={active === 'workspace' ? 'active' : ''}>工作台</Link>
+        <Link to="/novel" className={active === 'workspace' ? 'active' : ''}>小说工作台</Link>
         <Link to="/settings" className={active === 'settings' ? 'active' : ''}>AI设置</Link>
       </nav>
     </header>
@@ -173,7 +198,7 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    type: 'proposal',
+    type: 'novel',
     idea: '',
     description: '',
     readers: '',
@@ -236,9 +261,9 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
 
     addToast?.('项目创建成功，已进入工作台', 'success');
     setShowCreateModal(false);
-    setFormData({ name: '', type: 'proposal', idea: '', description: '', readers: '', scale: '' });
+    setFormData({ name: '', type: 'novel', idea: '', description: '', readers: '', scale: '' });
     void loadProjects();
-    navigate(`/project/${created.id}`);
+    navigate(getProjectWorkspacePath(created));
   };
 
   const handleDeleteProject = async (project: Project) => {
@@ -260,7 +285,7 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
         <div className="page-head-row">
           <div>
             <h2>项目总览</h2>
-            <p>先选项目，再进入工作台推进章节，不在这里暴露底层模型参数。</p>
+            <p>小说项目将优先进入 V3 小说工作台，旧长文项目仍保留兼容工作台。</p>
           </div>
           <button type="button" className="btn btn-primary" onClick={() => setShowCreateModal(true)}>+ 新建项目</button>
         </div>
@@ -308,9 +333,9 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={() => navigate(`/project/${project.id}`)}
+                    onClick={() => navigate(getProjectWorkspacePath(project))}
                   >
-                    进入工作台
+                    {project.type === 'novel' ? '进入小说工作台' : '进入旧工作台'}
                   </button>
                   <button
                     type="button"
@@ -329,9 +354,9 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
       <section className="card section-card">
         <h3>建议流程</h3>
         <ul className="hint-list">
-          <li>1. 先创建项目并生成大纲，再进入章节工作台逐章推进。</li>
-          <li>2. 关键改动前创建快照，确保回滚成本可控。</li>
-          <li>3. 交付前先运行整体检查，再到导出中心输出文件。</li>
+          <li>1. 新建小说项目后，先沉淀故事种子，再进入 Story Bible 和 Plot Board。</li>
+          <li>2. Scene Sprint 现在已经接入统一任务入口，可直接用任务而不是旧按钮写作。</li>
+          <li>3. Continuity Review、Lore Memory 和 Manuscript Center 目前已提供页面壳，后续逐步接真数据。</li>
         </ul>
       </section>
 
@@ -344,7 +369,7 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
                 id="project-name"
                 value={formData.name}
                 onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="例如：企业知识库改造方案"
+                placeholder="例如：烬海王朝"
               />
             </div>
             <div className="field">
@@ -354,10 +379,10 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
                 value={formData.type}
                 onChange={(event) => setFormData((prev) => ({ ...prev, type: event.target.value }))}
               >
+                <option value="novel">小说</option>
                 <option value="proposal">方案</option>
                 <option value="report">报告</option>
                 <option value="research">研究报告</option>
-                <option value="novel">小说</option>
                 <option value="other">其他</option>
               </select>
             </div>
@@ -368,7 +393,7 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
                 rows={3}
                 value={formData.idea}
                 onChange={(event) => setFormData((prev) => ({ ...prev, idea: event.target.value }))}
-                placeholder="描述目标、核心观点、约束条件"
+                placeholder="描述故事种子、主角、冲突、世界观，或你脑海中的关键场景"
               />
             </div>
             <div className="field field-full">
@@ -403,6 +428,1496 @@ function ProjectListPage({ addToast }: PageProps): JSX.Element {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+function NovelWorkspacePage({ addToast }: PageProps): JSX.Element {
+  const { projectId } = useParams<{ projectId: string }>();
+
+  const [loading, setLoading] = useState(true);
+  const [project, setProject] = useState<Project | null>(null);
+  const [outline, setOutline] = useState<Outline | null>(null);
+  const [storyBible, setStoryBible] = useState<StoryBible | null>(null);
+  const [plotBoard, setPlotBoard] = useState<PlotBoardSnapshot | null>(null);
+  const [memoryCards, setMemoryCards] = useState<MemoryCard[]>([]);
+  const [retconDecisions, setRetconDecisions] = useState<RetconDecision[]>([]);
+  const [manuscriptReadiness, setManuscriptReadiness] = useState<ManuscriptReadiness | null>(null);
+  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
+  const [metrics, setMetrics] = useState<ProjectMetrics | null>(null);
+  const [activeModule, setActiveModule] = useState<NovelModuleTab>('overview');
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+  const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
+  const [candidateDrafts, setCandidateDrafts] = useState<CandidateDraft[]>([]);
+  const [continuityReports, setContinuityReports] = useState<ContinuityReport[]>([]);
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [storyBibleDraft, setStoryBibleDraft] = useState({
+    premise: '',
+    theme: '',
+    settingSummary: '',
+    conflictCore: '',
+    toneGuide: '',
+    narrativePromise: '',
+  });
+  const [chapterGoalDrafts, setChapterGoalDrafts] = useState<Record<string, ChapterGoal>>({});
+  const [retconDraft, setRetconDraft] = useState({
+    summary: '',
+    reason: '',
+    affectedChapterIds: [] as string[],
+    affectedCharacters: '',
+  });
+  const [taskPrompt, setTaskPrompt] = useState('');
+  const [taskLoading, setTaskLoading] = useState(false);
+  const [storyBibleSaving, setStoryBibleSaving] = useState(false);
+  const [storyBibleGenerating, setStoryBibleGenerating] = useState(false);
+  const [chapterGoalSavingId, setChapterGoalSavingId] = useState<string | null>(null);
+  const [retconSaving, setRetconSaving] = useState(false);
+  const [retconActionId, setRetconActionId] = useState<string | null>(null);
+  const [lastTaskResult, setLastTaskResult] = useState<NovelTaskExecutionResult | null>(null);
+  const [taskHistory, setTaskHistory] = useState<NovelTaskExecutionResult[]>([]);
+
+  const loadNovelWorkspace = useCallback(async () => {
+    if (!projectId) return;
+    setLoading(true);
+    const [projectData, outlineData, chapterList, metricsData, storyBibleData, plotBoardData, memoryCardData, retconData, readinessData] = await Promise.all([
+      projectApi.get(projectId),
+      outlineApi.get(projectId),
+      chapterApi.summaryList(projectId),
+      metricsApi.getProject(projectId),
+      storyBibleApi.get(projectId),
+      plotBoardApi.get(projectId),
+      loreMemoryApi.get(projectId),
+      retconApi.list(projectId),
+      manuscriptApi.getReadiness(projectId),
+    ]);
+
+    setProject(projectData);
+    setOutline(plotBoardData?.outline || outlineData);
+    setStoryBible(storyBibleData);
+    setPlotBoard(plotBoardData);
+    setMemoryCards(memoryCardData);
+    setRetconDecisions(retconData);
+    setManuscriptReadiness(readinessData);
+    setChapters(chapterList);
+    setMetrics(metricsData);
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => {
+    void loadNovelWorkspace();
+  }, [loadNovelWorkspace]);
+
+  useEffect(() => {
+    if (chapters.length === 0) {
+      setSelectedChapterId(null);
+      return;
+    }
+
+    if (selectedChapterId && chapters.some((chapter) => chapter.id === selectedChapterId)) {
+      return;
+    }
+
+    setSelectedChapterId(chapters[0].id);
+  }, [chapters, selectedChapterId]);
+
+  useEffect(() => {
+    const loadSelectedChapter = async () => {
+      if (!projectId || !selectedChapterId) {
+        setSelectedChapter(null);
+        setCandidateDrafts([]);
+        setContinuityReports([]);
+        setSelectedDraftId(null);
+        return;
+      }
+
+      const [chapter, draftList, reportList] = await Promise.all([
+        chapterApi.get(projectId, selectedChapterId),
+        aiApi.listCandidateDrafts(projectId, selectedChapterId),
+        aiApi.listContinuityReports(projectId, selectedChapterId),
+      ]);
+      setSelectedChapter(chapter);
+      setCandidateDrafts(draftList);
+      setContinuityReports(reportList);
+    };
+
+    void loadSelectedChapter();
+  }, [projectId, selectedChapterId]);
+
+  useEffect(() => {
+    if (candidateDrafts.length === 0) {
+      setSelectedDraftId(null);
+      return;
+    }
+
+    if (selectedDraftId && candidateDrafts.some((draft) => draft.draftId === selectedDraftId)) {
+      return;
+    }
+
+    setSelectedDraftId(candidateDrafts[0].draftId);
+  }, [candidateDrafts, selectedDraftId]);
+
+  useEffect(() => {
+    if (!storyBible) return;
+    setStoryBibleDraft({
+      premise: storyBible.premise || '',
+      theme: storyBible.theme || '',
+      settingSummary: storyBible.settingSummary || '',
+      conflictCore: storyBible.conflictCore || '',
+      toneGuide: storyBible.toneGuide || '',
+      narrativePromise: storyBible.narrativePromise || '',
+    });
+  }, [storyBible]);
+
+  useEffect(() => {
+    if (!plotBoard?.chapterGoals) {
+      setChapterGoalDrafts({});
+      return;
+    }
+
+    const nextDrafts: Record<string, ChapterGoal> = {};
+    for (const goal of plotBoard.chapterGoals) {
+      nextDrafts[goal.chapterId] = goal;
+    }
+    setChapterGoalDrafts(nextDrafts);
+  }, [plotBoard]);
+
+  useEffect(() => {
+    if (!selectedChapterId) return;
+    setRetconDraft((prev) => (
+      prev.affectedChapterIds.length > 0
+        ? prev
+        : { ...prev, affectedChapterIds: [selectedChapterId] }
+    ));
+  }, [selectedChapterId]);
+
+  const handleRunTask = async (taskType: NovelTaskType) => {
+    if (!projectId || !selectedChapterId) return;
+
+    setTaskLoading(true);
+    try {
+      const result = await aiApi.runTask({
+        projectId,
+        chapterId: selectedChapterId,
+        taskType,
+        prompt: taskPrompt.trim() || undefined,
+        complexity: taskType === 'rewrite_scene'
+          ? 'deep'
+          : taskType === 'advance_scene'
+            ? 'standard'
+            : 'quick',
+      });
+
+      if (!result) return;
+
+      const attemptDrafts = result.attempts.map((attempt) => attempt.candidateDraft);
+      const attemptReports = result.attempts.map((attempt) => attempt.continuityReport);
+
+      setLastTaskResult(result);
+      setTaskHistory((prev) => [result, ...prev.filter((item) => item.taskRun.runId !== result.taskRun.runId)].slice(0, 8));
+      setSelectedChapter(result.chapter);
+      setCandidateDrafts((prev) => mergeCandidateDrafts([...attemptDrafts, ...prev]));
+      setContinuityReports((prev) => mergeContinuityReports([...attemptReports, ...prev]));
+      setSelectedDraftId(result.candidateDraft.draftId);
+      setTaskPrompt('');
+      setActiveModule('scene_sprint');
+      addToast?.(`${taskTypeLabel(taskType)}已生成候选稿`, 'success');
+
+      const [chapterList, metricsData] = await Promise.all([
+        chapterApi.summaryList(projectId),
+        metricsApi.getProject(projectId),
+      ]);
+      setChapters(chapterList);
+      setMetrics(metricsData);
+      setMemoryCards(await loreMemoryApi.get(projectId));
+      setManuscriptReadiness(await manuscriptApi.getReadiness(projectId));
+    } finally {
+      setTaskLoading(false);
+    }
+  };
+
+  const handleAdoptCandidateDraft = async (draftId: string, force = false) => {
+    if (!projectId || !selectedChapterId) return;
+
+    const result = await aiApi.adoptCandidateDraft(projectId, selectedChapterId, draftId, force);
+    if (!result) return;
+
+    setSelectedChapter(result.chapter);
+    setCandidateDrafts((prev) => prev.map((draft) => (
+      draft.draftId === draftId
+        ? result.candidateDraft
+        : draft.status === 'pending_review'
+          ? { ...draft, status: 'superseded' }
+          : draft
+    )));
+    if (lastTaskResult?.candidateDraft?.draftId === draftId) {
+      setLastTaskResult({
+        ...lastTaskResult,
+        chapter: result.chapter,
+        candidateDraft: result.candidateDraft,
+        continuityReport: result.continuityReport,
+        attempts: lastTaskResult.attempts.map((attempt) => (
+          attempt.candidateDraft.draftId === draftId
+            ? {
+              ...attempt,
+              candidateDraft: result.candidateDraft,
+              continuityReport: result.continuityReport,
+            }
+            : attempt
+        )),
+      });
+    }
+    setContinuityReports((prev) => prev.map((report) => report.draftId === draftId ? result.continuityReport : report));
+
+    const [chapterList, metricsData] = await Promise.all([
+      chapterApi.summaryList(projectId),
+      metricsApi.getProject(projectId),
+    ]);
+    setChapters(chapterList);
+    setMetrics(metricsData);
+    setMemoryCards(await loreMemoryApi.get(projectId));
+    setManuscriptReadiness(await manuscriptApi.getReadiness(projectId));
+    addToast?.(
+      force
+        ? `候选稿已强制采纳，并自动创建快照${result.snapshotId ? `（${result.snapshotId}）` : ''}`
+        : '候选稿已采纳并写入正式正文',
+      force ? 'info' : 'success'
+    );
+  };
+
+  const handleRejectCandidateDraft = async (draftId: string) => {
+    if (!projectId || !selectedChapterId) return;
+
+    const result = await aiApi.rejectCandidateDraft(projectId, selectedChapterId, draftId);
+    if (!result) return;
+
+    setCandidateDrafts((prev) => prev.map((draft) => draft.draftId === draftId ? result : draft));
+    if (lastTaskResult?.candidateDraft?.draftId === draftId) {
+      setLastTaskResult({
+        ...lastTaskResult,
+        candidateDraft: result,
+        attempts: lastTaskResult.attempts.map((attempt) => (
+          attempt.candidateDraft.draftId === draftId
+            ? {
+              ...attempt,
+              candidateDraft: result,
+            }
+            : attempt
+        )),
+      });
+    }
+    addToast?.('候选稿已放弃', 'info');
+  };
+
+  const handleRegenerateContinuityReport = async (draftId: string) => {
+    if (!projectId || !selectedChapterId) return;
+
+    const result = await aiApi.regenerateContinuityReport(projectId, selectedChapterId, draftId);
+    if (!result) return;
+
+    setContinuityReports((prev) => [result, ...prev.filter((report) => report.draftId !== result.draftId)]);
+    if (lastTaskResult?.candidateDraft?.draftId === draftId) {
+      setLastTaskResult({
+        ...lastTaskResult,
+        continuityReport: result,
+        attempts: lastTaskResult.attempts.map((attempt) => (
+          attempt.candidateDraft.draftId === draftId
+            ? {
+              ...attempt,
+              continuityReport: result,
+            }
+            : attempt
+        )),
+      });
+    }
+    addToast?.('连续性报告已重新生成', 'success');
+  };
+
+  const toggleRetconChapter = (chapterId: string) => {
+    setRetconDraft((prev) => ({
+      ...prev,
+      affectedChapterIds: prev.affectedChapterIds.includes(chapterId)
+        ? prev.affectedChapterIds.filter((item) => item !== chapterId)
+        : [...prev.affectedChapterIds, chapterId],
+    }));
+  };
+
+  const handleProposeRetcon = async () => {
+    if (!projectId) return;
+
+    setRetconSaving(true);
+    try {
+      const result = await retconApi.propose(projectId, {
+        summary: retconDraft.summary,
+        reason: retconDraft.reason,
+        affectedChapterIds: retconDraft.affectedChapterIds,
+        affectedCharacters: retconDraft.affectedCharacters
+          .split(/[，,]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+
+      if (!result) return;
+
+      setRetconDecisions((prev) => [result, ...prev.filter((item) => item.retconId !== result.retconId)]);
+      setRetconDraft({
+        summary: '',
+        reason: '',
+        affectedChapterIds: selectedChapterId ? [selectedChapterId] : [],
+        affectedCharacters: '',
+      });
+      addToast?.('Retcon 提案已创建', 'success');
+    } finally {
+      setRetconSaving(false);
+    }
+  };
+
+  const handleApproveRetcon = async (retconId: string) => {
+    if (!projectId) return;
+
+    setRetconActionId(retconId);
+    try {
+      const result = await retconApi.approve(projectId, retconId);
+      if (!result) return;
+
+      setRetconDecisions((prev) => prev.map((item) => item.retconId === retconId ? result.decision : item));
+      setMemoryCards(await loreMemoryApi.get(projectId));
+      addToast?.(`Retcon 已批准，并生成 ${result.snapshotIds.length} 个快照`, 'info');
+    } finally {
+      setRetconActionId(null);
+    }
+  };
+
+  const handleRollbackRetcon = async (retconId: string) => {
+    if (!projectId) return;
+
+    setRetconActionId(retconId);
+    try {
+      const result = await retconApi.rollback(projectId, retconId);
+      if (!result) return;
+
+      setRetconDecisions((prev) => prev.map((item) => item.retconId === retconId ? result : item));
+      setMemoryCards(await loreMemoryApi.get(projectId));
+      addToast?.('Retcon 已回滚', 'info');
+    } finally {
+      setRetconActionId(null);
+    }
+  };
+
+  const handleReviewRetcon = (decision: RetconDecision) => {
+    const chapterRef = decision.affectedRefs.find((ref) => ref.kind === 'chapter');
+    if (chapterRef) {
+      setSelectedChapterId(chapterRef.id);
+    }
+    setActiveModule('continuity_review');
+  };
+
+  const handleGenerateStoryBible = async () => {
+    if (!projectId) return;
+
+    setStoryBibleGenerating(true);
+    try {
+      const result = await storyBibleApi.generate(projectId, project?.description || project?.name);
+      if (!result) return;
+      setStoryBible(result);
+      addToast?.('Story Bible 已重新生成', 'success');
+    } finally {
+      setStoryBibleGenerating(false);
+    }
+  };
+
+  const handleSaveStoryBible = async () => {
+    if (!projectId) return;
+
+    setStoryBibleSaving(true);
+    try {
+      const result = await storyBibleApi.update(projectId, storyBibleDraft);
+      if (!result) return;
+      setStoryBible(result);
+      addToast?.('Story Bible 已保存', 'success');
+    } finally {
+      setStoryBibleSaving(false);
+    }
+  };
+
+  const handleConfirmStoryBible = async () => {
+    if (!projectId) return;
+
+    setStoryBibleSaving(true);
+    try {
+      const result = await storyBibleApi.confirm(projectId);
+      if (!result) return;
+      setStoryBible(result);
+      setMemoryCards(await loreMemoryApi.get(projectId));
+      setManuscriptReadiness(await manuscriptApi.getReadiness(projectId));
+      addToast?.('Story Bible 已确认', 'success');
+    } finally {
+      setStoryBibleSaving(false);
+    }
+  };
+
+  const handleChapterGoalDraftChange = (
+    chapterId: string,
+    field: keyof Pick<ChapterGoal, 'title' | 'objective' | 'conflict' | 'emotionalShift' | 'payoff'>,
+    value: string
+  ) => {
+    setChapterGoalDrafts((prev) => {
+      const current = prev[chapterId];
+      if (!current) return prev;
+      return {
+        ...prev,
+        [chapterId]: {
+          ...current,
+          [field]: value,
+        },
+      };
+    });
+  };
+
+  const handleSaveChapterGoal = async (chapterId: string) => {
+    if (!projectId) return;
+    const goal = chapterGoalDrafts[chapterId];
+    if (!goal) return;
+
+    setChapterGoalSavingId(chapterId);
+    try {
+      const result = await plotBoardApi.updateChapterGoal(projectId, chapterId, goal);
+      if (!result) return;
+      setPlotBoard(result);
+      setOutline(result.outline);
+      addToast?.('Plot Board 章节目标已保存', 'success');
+    } finally {
+      setChapterGoalSavingId(null);
+    }
+  };
+
+  const handleSyncLoreMemory = async () => {
+    if (!projectId) return;
+    const cards = await loreMemoryApi.sync(projectId);
+    setMemoryCards(cards);
+    addToast?.('Lore Memory 已同步', 'success');
+  };
+
+  const handleRefreshManuscriptReadiness = async () => {
+    if (!projectId) return;
+    const readiness = await manuscriptApi.getReadiness(projectId);
+    setManuscriptReadiness(readiness);
+    addToast?.('Manuscript Readiness 已刷新', 'success');
+  };
+
+  if (loading) {
+    return (
+      <div className="page-shell">
+        <AppTopbar active="workspace" />
+        <Loading />
+      </div>
+    );
+  }
+
+  if (!project || !projectId) {
+    return (
+      <div className="page-shell">
+        <AppTopbar active="workspace" />
+        <section className="card section-card">
+          <h2>未找到项目</h2>
+          <p className="muted-text">请先返回项目页创建小说项目。</p>
+          <div className="inline-actions mt-12">
+            <Link to="/" className="btn btn-primary">返回项目页</Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (project.type !== 'novel') {
+    return (
+      <div className="page-shell">
+        <AppTopbar active="workspace" />
+        <section className="card section-card">
+          <h2>{project.name}</h2>
+          <p className="muted-text">该项目不是小说类型，继续使用旧版长文工作台更稳妥。</p>
+          <div className="inline-actions mt-12">
+            <Link to={getProjectWorkspacePath(project)} className="btn btn-primary">进入旧工作台</Link>
+            <Link to="/" className="btn btn-ghost">返回项目页</Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const completedCount = chapters.filter((chapter) => chapter.status === 'completed').length;
+  const completionRate = chapters.length > 0 ? Math.round((completedCount / chapters.length) * 100) : 0;
+  const activeDraft = candidateDrafts.find((draft) => draft.draftId === selectedDraftId) || null;
+  const activeContinuityReport = continuityReports.find((report) => report.draftId === selectedDraftId) || null;
+  const moduleCards = [
+    {
+      key: 'story_bible' as const,
+      title: 'Story Bible',
+      desc: '确认故事前提、主冲突、叙事承诺和语气。',
+    },
+    {
+      key: 'plot_board' as const,
+      title: 'Plot Board',
+      desc: '以章节目标和节拍来管理剧情推进。',
+    },
+    {
+      key: 'scene_sprint' as const,
+      title: 'Scene Sprint',
+      desc: '从统一任务入口发起推进场景、润色和深改。',
+    },
+    {
+      key: 'continuity_review' as const,
+      title: 'Continuity Review',
+      desc: '后续在这里收口设定冲突、人物偏移和时间线问题。',
+    },
+    {
+      key: 'retcon_flow' as const,
+      title: 'Retcon Flow',
+      desc: '声明一次设定改写，并把影响章节和角色纳入复查链路。',
+    },
+    {
+      key: 'lore_memory' as const,
+      title: 'Lore Memory',
+      desc: '世界观、角色和剧情决议的长期记忆中心。',
+    },
+    {
+      key: 'manuscript_center' as const,
+      title: 'Manuscript Center',
+      desc: '从成稿准备度视角查看整体完成情况。',
+    },
+    {
+      key: 'run_console' as const,
+      title: 'Run Console',
+      desc: '查看 route、PEER 步骤轨迹和桥接执行信息。',
+    },
+  ];
+
+  return (
+    <div className="page-shell">
+      <AppTopbar active="workspace" />
+
+      <section className="card page-head">
+        <div className="page-head-row">
+          <div>
+            <h2>{project.name}</h2>
+            <p>{project.description || '当前还没有补充小说简介，可先在 Story Bible 里补全。'}</p>
+          </div>
+          <div className="inline-actions wrap">
+            <Link to={`/project/${projectId}`} className="btn btn-ghost">进入旧工作台</Link>
+            <button type="button" className="btn btn-primary" onClick={() => setActiveModule('scene_sprint')}>
+              进入 Scene Sprint
+            </button>
+          </div>
+        </div>
+        <div className="kpi-grid">
+          <article className="kpi-card"><small>章节总数</small><strong>{chapters.length}</strong></article>
+          <article className="kpi-card"><small>已完成</small><strong>{completedCount}</strong></article>
+          <article className="kpi-card"><small>完成率</small><strong>{completionRate}%</strong></article>
+          <article className="kpi-card"><small>最近任务</small><strong>{lastTaskResult ? taskTypeLabel(lastTaskResult.envelope.taskType) : '暂无'}</strong></article>
+        </div>
+      </section>
+
+      <section className="card section-card">
+        <div className="tab-list" role="tablist" aria-label="小说工作台模块">
+          {[
+            ['overview', 'Overview'],
+            ['story_bible', 'Story Bible'],
+            ['plot_board', 'Plot Board'],
+            ['scene_sprint', 'Scene Sprint'],
+            ['continuity_review', 'Continuity Review'],
+            ['retcon_flow', 'Retcon Flow'],
+            ['lore_memory', 'Lore Memory'],
+            ['manuscript_center', 'Manuscript Center'],
+            ['run_console', 'Run Console'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`tab-btn ${activeModule === key ? 'active' : ''}`}
+              onClick={() => setActiveModule(key as NovelModuleTab)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {activeModule === 'overview' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Overview</h3>
+              <span className="tag">V3 页面壳已接通</span>
+            </div>
+            <div className="project-grid">
+              {moduleCards.map((module) => (
+                <article key={module.key} className="project-card">
+                  <div className="project-card-head">
+                    <strong>{module.title}</strong>
+                    <span className="tag">
+                      {module.key === 'scene_sprint'
+                        ? '已接任务入口'
+                        : module.key === 'story_bible' || module.key === 'plot_board'
+                          ? '已接真实读写'
+                          : module.key === 'continuity_review' || module.key === 'lore_memory' || module.key === 'manuscript_center'
+                            ? '已接真实计算'
+                            : '占位态'}
+                    </span>
+                  </div>
+                  <p>{module.desc}</p>
+                  <div className="project-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => setActiveModule(module.key)}
+                    >
+                      打开模块
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="banner muted">
+              当前版本说明：Story Bible、Plot Board、Scene Sprint、Continuity Review、Lore Memory、Manuscript Center 都已接通基础能力；下一阶段重点转向 Router、PEER 和四层上下文。
+            </div>
+          </div>
+        )}
+
+        {activeModule === 'story_bible' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Story Bible</h3>
+              <span className="tag">{storyBible?.status === 'confirmed' ? '已确认' : '草案'}</span>
+            </div>
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h3>故事底座摘要</h3>
+                  <p>现在这里已经有真实 Story Bible 仓储，可生成、编辑、保存和确认。</p>
+                </div>
+                <div className="inline-actions wrap">
+                  <button type="button" className="btn btn-ghost" onClick={() => void handleGenerateStoryBible()} disabled={storyBibleGenerating}>
+                    {storyBibleGenerating ? '生成中...' : 'AI 重新生成'}
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={() => void handleConfirmStoryBible()} disabled={storyBibleSaving}>
+                    确认 Story Bible
+                  </button>
+                  <button type="button" className="btn btn-primary" onClick={() => void handleSaveStoryBible()} disabled={storyBibleSaving}>
+                    {storyBibleSaving ? '保存中...' : '保存'}
+                  </button>
+                </div>
+              </div>
+              <div className="form-grid mt-12">
+                <div className="field field-full">
+                  <label htmlFor="story-bible-premise">故事前提</label>
+                  <textarea
+                    id="story-bible-premise"
+                    rows={3}
+                    value={storyBibleDraft.premise}
+                    onChange={(event) => setStoryBibleDraft((prev) => ({ ...prev, premise: event.target.value }))}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="story-bible-theme">主题</label>
+                  <input
+                    id="story-bible-theme"
+                    value={storyBibleDraft.theme}
+                    onChange={(event) => setStoryBibleDraft((prev) => ({ ...prev, theme: event.target.value }))}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="story-bible-conflict">主冲突</label>
+                  <input
+                    id="story-bible-conflict"
+                    value={storyBibleDraft.conflictCore}
+                    onChange={(event) => setStoryBibleDraft((prev) => ({ ...prev, conflictCore: event.target.value }))}
+                  />
+                </div>
+                <div className="field field-full">
+                  <label htmlFor="story-bible-setting">世界观摘要</label>
+                  <textarea
+                    id="story-bible-setting"
+                    rows={4}
+                    value={storyBibleDraft.settingSummary}
+                    onChange={(event) => setStoryBibleDraft((prev) => ({ ...prev, settingSummary: event.target.value }))}
+                  />
+                </div>
+                <div className="field field-full">
+                  <label htmlFor="story-bible-tone">叙事语气</label>
+                  <textarea
+                    id="story-bible-tone"
+                    rows={3}
+                    value={storyBibleDraft.toneGuide}
+                    onChange={(event) => setStoryBibleDraft((prev) => ({ ...prev, toneGuide: event.target.value }))}
+                  />
+                </div>
+                <div className="field field-full">
+                  <label htmlFor="story-bible-promise">叙事承诺</label>
+                  <textarea
+                    id="story-bible-promise"
+                    rows={3}
+                    value={storyBibleDraft.narrativePromise}
+                    onChange={(event) => setStoryBibleDraft((prev) => ({ ...prev, narrativePromise: event.target.value }))}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeModule === 'plot_board' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Plot Board</h3>
+              <span className="tag">{plotBoard?.chapterGoals.length || 0} 章节目标</span>
+            </div>
+            {!plotBoard?.outline || plotBoard.chapterGoals.length === 0 ? (
+              <div className="empty-block">
+                <h4>暂无章节结构</h4>
+                <p>请先生成大纲，Plot Board 会自动同步成章节目标板。</p>
+              </div>
+            ) : (
+              <div className="outline-list">
+                {plotBoard.chapterGoals.map((goal) => (
+                  <article key={goal.chapterId} className="panel">
+                    <div className="panel-head">
+                      <div>
+                        <h3>{goal.title}</h3>
+                        <p>{goal.chapterId} · {formatChapterGoalStatus(goal.status)}</p>
+                      </div>
+                      <div className="inline-actions wrap">
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            setSelectedChapterId(goal.chapterId);
+                            setActiveModule('scene_sprint');
+                          }}
+                        >
+                          去写这一章
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => void handleSaveChapterGoal(goal.chapterId)}
+                          disabled={chapterGoalSavingId === goal.chapterId}
+                        >
+                          {chapterGoalSavingId === goal.chapterId ? '保存中...' : '保存目标'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="form-grid mt-12">
+                      <div className="field">
+                        <label htmlFor={`goal-title-${goal.chapterId}`}>章节标题</label>
+                        <input
+                          id={`goal-title-${goal.chapterId}`}
+                          value={chapterGoalDrafts[goal.chapterId]?.title || ''}
+                          onChange={(event) => handleChapterGoalDraftChange(goal.chapterId, 'title', event.target.value)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`goal-objective-${goal.chapterId}`}>章节目标</label>
+                        <input
+                          id={`goal-objective-${goal.chapterId}`}
+                          value={chapterGoalDrafts[goal.chapterId]?.objective || ''}
+                          onChange={(event) => handleChapterGoalDraftChange(goal.chapterId, 'objective', event.target.value)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`goal-conflict-${goal.chapterId}`}>关键冲突</label>
+                        <input
+                          id={`goal-conflict-${goal.chapterId}`}
+                          value={chapterGoalDrafts[goal.chapterId]?.conflict || ''}
+                          onChange={(event) => handleChapterGoalDraftChange(goal.chapterId, 'conflict', event.target.value)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`goal-shift-${goal.chapterId}`}>情绪变化</label>
+                        <input
+                          id={`goal-shift-${goal.chapterId}`}
+                          value={chapterGoalDrafts[goal.chapterId]?.emotionalShift || ''}
+                          onChange={(event) => handleChapterGoalDraftChange(goal.chapterId, 'emotionalShift', event.target.value)}
+                        />
+                      </div>
+                      <div className="field field-full">
+                        <label htmlFor={`goal-payoff-${goal.chapterId}`}>本章回报</label>
+                        <textarea
+                          id={`goal-payoff-${goal.chapterId}`}
+                          rows={2}
+                          value={chapterGoalDrafts[goal.chapterId]?.payoff || ''}
+                          onChange={(event) => handleChapterGoalDraftChange(goal.chapterId, 'payoff', event.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeModule === 'scene_sprint' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Scene Sprint</h3>
+              <span className="tag">统一任务入口已接通</span>
+            </div>
+            <div className="banner muted">
+              当前阶段：任务会先走 `ai:task` 统一入口，结果先落为候选稿。只有采纳后才会写入正式正文。
+            </div>
+            <div className="workspace-layout">
+              <aside className="panel">
+                <div className="panel-head">
+                  <h3>章节列表</h3>
+                  <span className="tag">{chapters.length} 章</span>
+                </div>
+                <ul className="chapter-list">
+                  {chapters.map((chapter) => (
+                    <li key={chapter.id} className={`chapter-item ${chapter.id === selectedChapterId ? 'active' : ''}`}>
+                      <button
+                        type="button"
+                        className="chapter-item-btn"
+                        onClick={() => setSelectedChapterId(chapter.id)}
+                      >
+                        <h4>{chapter.title}</h4>
+                        <span>{chapter.number} · {formatStatus(chapter.status)} · {chapter.wordCount.toLocaleString()} 字</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>{selectedChapter?.title || '请选择章节'}</h3>
+                    <p>{selectedChapter ? `${selectedChapter.number} · 完成度 ${selectedChapter.completion}%` : '请选择章节后发起任务'}</p>
+                  </div>
+                  {selectedChapterId && (
+                    <Link to={`/project/${projectId}?chapterId=${encodeURIComponent(selectedChapterId)}`} className="btn btn-ghost">
+                      打开旧编辑器
+                    </Link>
+                  )}
+                </div>
+
+                <div className="field field-full">
+                  <label htmlFor="scene-task-prompt">任务补充说明</label>
+                  <textarea
+                    id="scene-task-prompt"
+                    rows={3}
+                    value={taskPrompt}
+                    onChange={(event) => setTaskPrompt(event.target.value)}
+                    placeholder="补充场景目标、人物情绪、冲突方向、文风要求。可留空。"
+                  />
+                </div>
+
+                <div className="editor-toolbar">
+                  <div className="intent-list">
+                    {[
+                      ['polish_scene', '快速润色'],
+                      ['advance_scene', '推进场景'],
+                      ['rewrite_scene', '深改剧情'],
+                    ].map(([taskType, label]) => (
+                      <button
+                        key={taskType}
+                        type="button"
+                        className={`intent-btn ${taskType === 'advance_scene' ? 'primary' : ''}`}
+                        onClick={() => void handleRunTask(taskType as NovelTaskType)}
+                        disabled={!selectedChapterId || taskLoading}
+                      >
+                        {taskLoading ? '执行中...' : label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="editor-layout">
+                  <article className="editor-pane">
+                    <pre className="preview-text">{selectedChapter?.content || '当前章节暂无正文内容。'}</pre>
+                  </article>
+                  <aside className="side-pane">
+                    <h4>候选稿</h4>
+                    {candidateDrafts.length === 0 ? (
+                      <p className="muted-text">还没有候选稿。</p>
+                    ) : (
+                      <>
+                        <ul className="timeline-list">
+                          {candidateDrafts.slice(0, 5).map((draft) => (
+                            <li key={draft.draftId}>
+                              <button
+                                type="button"
+                                className="chapter-item-btn"
+                                onClick={() => setSelectedDraftId(draft.draftId)}
+                              >
+                                <strong>{formatDateTime(draft.createdAt)}</strong>
+                                <span>{intentLabel(draft.sourceIntent)} · {formatCandidateDraftStatus(draft.status)}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        {activeDraft && (
+                          <>
+                            <div className={`banner ${activeContinuityReport?.passed ? '' : 'muted'}`}>
+                              连续性检查：
+                              {activeContinuityReport
+                                ? `${activeContinuityReport.passed ? '通过' : '未通过'} · ${activeContinuityReport.score} 分`
+                                : '尚未生成'}
+                            </div>
+                            <pre className="preview-text">{activeDraft.content}</pre>
+                            <div className="inline-actions mt-12 wrap">
+                              {activeContinuityReport?.passed ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  onClick={() => void handleAdoptCandidateDraft(activeDraft.draftId)}
+                                  disabled={activeDraft.status === 'adopted'}
+                                >
+                                  {activeDraft.status === 'adopted' ? '已采纳' : '采纳到正文'}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  onClick={() => setActiveModule('continuity_review')}
+                                >
+                                  前往 Continuity Review
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                onClick={() => void handleRejectCandidateDraft(activeDraft.draftId)}
+                                disabled={activeDraft.status === 'rejected' || activeDraft.status === 'adopted'}
+                              >
+                                放弃候选稿
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </aside>
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
+
+        {activeModule === 'continuity_review' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Continuity Review</h3>
+              <span className="tag">{continuityReports.length} 份报告</span>
+            </div>
+            {candidateDrafts.length === 0 ? (
+              <div className="empty-block">
+                <h4>暂无候选稿</h4>
+                <p>请先在 Scene Sprint 发起写作任务，再进入连续性审查。</p>
+              </div>
+            ) : (
+              <div className="workspace-layout">
+                <aside className="panel">
+                  <div className="panel-head">
+                    <h3>待审候选稿</h3>
+                    <span className="tag">{candidateDrafts.length} 份</span>
+                  </div>
+                  <ul className="chapter-list">
+                    {candidateDrafts.map((draft) => {
+                      const report = continuityReports.find((item) => item.draftId === draft.draftId);
+                      return (
+                        <li key={draft.draftId} className={`chapter-item ${draft.draftId === selectedDraftId ? 'active' : ''}`}>
+                          <button
+                            type="button"
+                            className="chapter-item-btn"
+                            onClick={() => setSelectedDraftId(draft.draftId)}
+                          >
+                            <h4>{formatDateTime(draft.createdAt)}</h4>
+                            <span>
+                              {intentLabel(draft.sourceIntent)} ·
+                              {report ? ` ${report.passed ? '通过' : '未通过'} ${report.score}分` : ' 未评估'}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </aside>
+                <section className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>{activeDraft ? `候选稿 ${formatDateTime(activeDraft.createdAt)}` : '请选择候选稿'}</h3>
+                      <p>
+                        {activeContinuityReport
+                          ? `${activeContinuityReport.passed ? '通过' : '未通过'} · ${activeContinuityReport.score} 分`
+                          : '当前还没有连续性报告'}
+                      </p>
+                    </div>
+                    {activeDraft && (
+                      <div className="inline-actions wrap">
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => void handleRegenerateContinuityReport(activeDraft.draftId)}
+                        >
+                          重新评估
+                        </button>
+                        {activeContinuityReport?.passed ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => void handleAdoptCandidateDraft(activeDraft.draftId)}
+                          >
+                            采纳到正文
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => void handleAdoptCandidateDraft(activeDraft.draftId, true)}
+                          >
+                            强制采纳
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => void handleRejectCandidateDraft(activeDraft.draftId)}
+                        >
+                          放弃候选稿
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {!activeDraft ? (
+                    <div className="empty-block compact">
+                      <p>请选择候选稿查看问题列表。</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={`banner ${activeContinuityReport?.passed ? '' : 'muted'}`}>
+                        {activeContinuityReport?.revisionAdvice || '当前还没有修订建议。'}
+                      </div>
+                      <div className="editor-layout">
+                        <article className="editor-pane">
+                          <pre className="preview-text">{activeDraft.content}</pre>
+                        </article>
+                        <aside className="side-pane">
+                          <h4>问题列表</h4>
+                          {!activeContinuityReport || activeContinuityReport.issues.length === 0 ? (
+                            <p className="muted-text">未发现明显连续性问题。</p>
+                          ) : (
+                            <ul className="timeline-list">
+                              {activeContinuityReport.issues.map((issue) => (
+                                <li key={issue.issueId}>
+                                  <strong>{formatContinuityIssueType(issue.type)} · {formatContinuitySeverity(issue.severity)}</strong>
+                                  <span>{issue.message}</span>
+                                  {issue.suggestion && <span>{issue.suggestion}</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </aside>
+                      </div>
+                    </>
+                  )}
+                </section>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeModule === 'lore_memory' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Lore Memory</h3>
+              <span className="tag">{memoryCards.length} 张记忆卡</span>
+            </div>
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h3>记忆中心</h3>
+                  <p>这里只展示已经被系统视为稳定的信息，不展示临时失败稿。</p>
+                </div>
+                <button type="button" className="btn btn-primary" onClick={() => void handleSyncLoreMemory()}>
+                  同步记忆
+                </button>
+              </div>
+              {!storyBible || storyBible.status !== 'confirmed' ? (
+                <div className="empty-block compact">
+                  <p>请先确认 Story Bible，长期记忆才会开始沉淀。</p>
+                </div>
+              ) : memoryCards.length === 0 ? (
+                <div className="empty-block compact">
+                  <p>当前还没有可沉淀的长期记忆，可先同步一次或完成更多章节。</p>
+                </div>
+              ) : (
+                <div className="project-grid">
+                  {memoryCards.map((card) => (
+                    <article key={card.memoryId} className="project-card">
+                      <div className="project-card-head">
+                        <strong>{card.title}</strong>
+                        <span className="tag">{formatMemoryCardKind(card.kind)}</span>
+                      </div>
+                      <p>{card.summary}</p>
+                      <div className="project-meta">
+                        <span>{Math.round(card.confidence * 100)}% 置信度</span>
+                        <span>{card.confirmed ? '已确认' : '待确认'}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeModule === 'retcon_flow' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Retcon Flow</h3>
+              <span className="tag">{retconDecisions.length} 条决策</span>
+            </div>
+            <div className="workspace-layout">
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>声明一次设定改写</h3>
+                    <p>先写清楚改什么、为什么改，再决定是否批准进入长期记忆与复查链路。</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => void handleProposeRetcon()}
+                    disabled={retconSaving || !retconDraft.summary.trim()}
+                  >
+                    {retconSaving ? '提交中...' : '创建提案'}
+                  </button>
+                </div>
+                <div className="form-grid mt-12">
+                  <div className="field field-full">
+                    <label htmlFor="retcon-summary">Retcon 摘要</label>
+                    <textarea
+                      id="retcon-summary"
+                      rows={3}
+                      value={retconDraft.summary}
+                      onChange={(event) => setRetconDraft((prev) => ({ ...prev, summary: event.target.value }))}
+                      placeholder="例如：第 12 章之后，主角并非失忆，而是在故意伪装失忆。"
+                    />
+                  </div>
+                  <div className="field field-full">
+                    <label htmlFor="retcon-reason">改动原因</label>
+                    <textarea
+                      id="retcon-reason"
+                      rows={3}
+                      value={retconDraft.reason}
+                      onChange={(event) => setRetconDraft((prev) => ({ ...prev, reason: event.target.value }))}
+                      placeholder="说明它要解决什么连载问题，或要释放哪条新剧情线。"
+                    />
+                  </div>
+                  <div className="field field-full">
+                    <label htmlFor="retcon-characters">受影响角色（用逗号分隔）</label>
+                    <input
+                      id="retcon-characters"
+                      value={retconDraft.affectedCharacters}
+                      onChange={(event) => setRetconDraft((prev) => ({ ...prev, affectedCharacters: event.target.value }))}
+                      placeholder="例如：林澈，闻雪，监察官"
+                    />
+                  </div>
+                  <div className="field field-full">
+                    <label>受影响章节</label>
+                    <div className="inline-actions wrap">
+                      {chapters.map((chapter) => {
+                        const selected = retconDraft.affectedChapterIds.includes(chapter.id);
+                        return (
+                          <button
+                            key={chapter.id}
+                            type="button"
+                            className={selected ? 'btn btn-primary' : 'btn btn-ghost'}
+                            onClick={() => toggleRetconChapter(chapter.id)}
+                          >
+                            {chapter.number} {chapter.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <aside className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Retcon 决策流</h3>
+                    <p>批准后自动创建快照，并把决策写入长期记忆。</p>
+                  </div>
+                </div>
+                {retconDecisions.length === 0 ? (
+                  <div className="empty-block compact">
+                    <p>当前还没有 retcon 决策。</p>
+                  </div>
+                ) : (
+                  <ul className="timeline-list">
+                    {retconDecisions.map((decision) => {
+                      const hasChapterRef = decision.affectedRefs.some((ref) => ref.kind === 'chapter');
+                      return (
+                        <li key={decision.retconId}>
+                          <strong>{formatRetconStatus(decision.status)} · {formatDateTime(decision.createdAt)}</strong>
+                          <span>{decision.summary}</span>
+                          {decision.reason && <span>{decision.reason}</span>}
+                          <span>
+                            影响范围：
+                            {decision.affectedRefs.length > 0
+                              ? decision.affectedRefs.map((ref) => `${formatTaskReferenceKind(ref.kind)}:${ref.label || ref.id}`).join('；')
+                              : '未指定'}
+                          </span>
+                          <div className="inline-actions wrap mt-12">
+                            {decision.status === 'proposed' && (
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => void handleApproveRetcon(decision.retconId)}
+                                disabled={retconActionId === decision.retconId}
+                              >
+                                {retconActionId === decision.retconId ? '处理中...' : '批准并写入记忆'}
+                              </button>
+                            )}
+                            {decision.status === 'approved' && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() => handleReviewRetcon(decision)}
+                                  disabled={!hasChapterRef}
+                                >
+                                  去复查
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() => void handleRollbackRetcon(decision.retconId)}
+                                  disabled={retconActionId === decision.retconId}
+                                >
+                                  {retconActionId === decision.retconId ? '处理中...' : '回滚'}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </aside>
+            </div>
+          </div>
+        )}
+
+        {activeModule === 'manuscript_center' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Manuscript Center</h3>
+              <div className="inline-actions wrap">
+                <button type="button" className="btn btn-primary" onClick={() => void handleRefreshManuscriptReadiness()}>
+                  刷新准备度
+                </button>
+                <Link to={`/project/${projectId}`} className="btn btn-ghost">打开旧导出与检查页</Link>
+              </div>
+            </div>
+            {!metrics || !manuscriptReadiness ? (
+              <div className="empty-block">
+                <h4>暂无统计数据</h4>
+                <p>请先执行写作任务或保存章节。</p>
+              </div>
+            ) : (
+              <>
+                <div className="kpi-grid kpi-grid-wide">
+                  <article className="kpi-card"><small>Readiness</small><strong>{manuscriptReadiness.readinessScore}</strong></article>
+                  <article className="kpi-card"><small>总章节</small><strong>{metrics.totalChapters}</strong></article>
+                  <article className="kpi-card"><small>完成章节</small><strong>{metrics.completedChapters}</strong></article>
+                  <article className="kpi-card"><small>阻塞项</small><strong>{manuscriptReadiness.blockingIssueCount}</strong></article>
+                  <article className="kpi-card"><small>总字数</small><strong>{metrics.totalWords.toLocaleString()}</strong></article>
+                  <article className="kpi-card"><small>AI 操作</small><strong>{metrics.aiOperations}</strong></article>
+                  <article className="kpi-card"><small>快照数</small><strong>{metrics.snapshotsCreated}</strong></article>
+                  <article className="kpi-card"><small>最近活跃</small><strong>{formatDateTime(metrics.lastActivityAt)}</strong></article>
+                </div>
+                <section className="panel preview-panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>阻塞项</h3>
+                      <p>只要这里还有阻塞项，就说明当前稿件还不适合进入最终收口或稳定连载。</p>
+                    </div>
+                  </div>
+                  {manuscriptReadiness.blockers.length === 0 ? (
+                    <div className="empty-block compact">
+                      <p>当前没有明显阻塞项，可以进入导出或总修阶段。</p>
+                    </div>
+                  ) : (
+                    <ul className="timeline-list">
+                      {manuscriptReadiness.blockers.map((blocker) => (
+                        <li key={blocker.blockerId}>
+                          <strong>{blocker.chapterId ? `章节 ${blocker.chapterId}` : '全局阻塞项'}</strong>
+                          <span>{blocker.message}</span>
+                          {blocker.relatedIssue && (
+                            <span>{formatContinuityIssueType(blocker.relatedIssue.type)} · {formatContinuitySeverity(blocker.relatedIssue.severity)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeModule === 'run_console' && (
+          <div className="tab-panel">
+            <div className="section-head">
+              <h3>Run Console</h3>
+              <span className="tag">已展示 Router 与 PEER 轨迹</span>
+            </div>
+            {!lastTaskResult ? (
+              <div className="empty-block">
+                <h4>暂无任务记录</h4>
+                <p>请先到 Scene Sprint 发起一个写作任务。</p>
+              </div>
+            ) : (
+              <div className="workspace-layout">
+                <section className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>{taskTypeLabel(lastTaskResult.envelope.taskType)}</h3>
+                      <p>{routeLabel(lastTaskResult.routeDecision.route)} · {complexityLabel(lastTaskResult.routeDecision.complexity)}</p>
+                    </div>
+                    <span className="tag">{lastTaskResult.routeDecision.executionMode}</span>
+                  </div>
+                  <ul className="timeline-list">
+                    {lastTaskResult.taskRun.steps.map((step) => (
+                      <li key={step.stepId}>
+                        <strong>{step.label}</strong>
+                        <span>{step.status} · {step.note || '暂无备注'}</span>
+                      </li>
+                    ))}
+                    {lastTaskResult.routeDecision.routeSignals.length > 0 && (
+                      <li>
+                        <strong>Router Signals</strong>
+                        <span>{lastTaskResult.routeDecision.routeSignals.join('；')}</span>
+                      </li>
+                    )}
+                  </ul>
+                  <div className="panel-section">
+                    <h4>Attempt Trace</h4>
+                    <ul className="timeline-list">
+                      {lastTaskResult.attempts.map((attempt) => (
+                        <li key={attempt.candidateDraft.draftId}>
+                          <strong>Round {attempt.round + 1}</strong>
+                          <span>
+                            {attempt.candidateDraft.draftId} · {attempt.continuityReport.passed ? '通过' : '未通过'} · {attempt.continuityReport.score} 分
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="panel-section">
+                    <h4>Recent Runs</h4>
+                    {taskHistory.length === 0 ? (
+                      <div className="empty-block compact">
+                        <p>当前还没有历史任务。</p>
+                      </div>
+                    ) : (
+                      <ul className="timeline-list">
+                        {taskHistory.map((item) => (
+                          <li key={item.taskRun.runId}>
+                            <button
+                              type="button"
+                              className="chapter-item-btn"
+                              onClick={() => setLastTaskResult(item)}
+                            >
+                              <strong>{taskTypeLabel(item.envelope.taskType)} · {routeLabel(item.routeDecision.route)}</strong>
+                              <span>
+                                {item.taskRun.status} · {item.continuityReport.passed ? '通过' : '未通过'} · {formatDateTime(item.taskRun.finishedAt || item.taskRun.startedAt)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </section>
+                <aside className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>结果摘要</h3>
+                      <p>当前任务已经返回独立候选稿，只有采纳后才会进入正文。</p>
+                    </div>
+                  </div>
+                  <ul className="timeline-list">
+                    <li>
+                      <strong>Run ID</strong>
+                      <span>{lastTaskResult.taskRun.runId}</span>
+                    </li>
+                    <li>
+                      <strong>Attempt / Revise</strong>
+                      <span>{lastTaskResult.attempts.length} 轮生成 · {lastTaskResult.taskRun.revisionCount} 轮修订</span>
+                    </li>
+                    <li>
+                      <strong>Operation ID</strong>
+                      <span>{lastTaskResult.operation.id}</span>
+                    </li>
+                    <li>
+                      <strong>Candidate Draft</strong>
+                      <span>{lastTaskResult.candidateDraft.draftId}</span>
+                    </li>
+                    <li>
+                      <strong>Continuity</strong>
+                      <span>{lastTaskResult.continuityReport.passed ? '通过' : '未通过'} · {lastTaskResult.continuityReport.score} 分</span>
+                    </li>
+                    <li>
+                      <strong>模型</strong>
+                      <span>{lastTaskResult.operation.output.model || '-'}</span>
+                    </li>
+                    <li>
+                      <strong>Token</strong>
+                      <span>{lastTaskResult.operation.output.tokens}</span>
+                    </li>
+                  </ul>
+                  <div className="panel-section">
+                    <h4>四层上下文</h4>
+                    <ul className="timeline-list">
+                      <li>
+                        <strong>System Context</strong>
+                        <span>{lastTaskResult.envelope.context.systemContext.join('；') || '无'}</span>
+                      </li>
+                      <li>
+                        <strong>Task Context</strong>
+                        <span>{lastTaskResult.envelope.context.taskContext.join('；') || '无'}</span>
+                      </li>
+                      <li>
+                        <strong>Working Memory</strong>
+                        <span>
+                          {lastTaskResult.envelope.context.workingMemory.length > 0
+                            ? lastTaskResult.envelope.context.workingMemory
+                              .map((ref) => `${formatTaskReferenceKind(ref.kind)}:${ref.label || ref.id}`)
+                              .join('；')
+                            : '无'}
+                        </span>
+                      </li>
+                      <li>
+                        <strong>Long-term Memory</strong>
+                        <span>
+                          {lastTaskResult.envelope.context.longTermMemory.length > 0
+                            ? lastTaskResult.envelope.context.longTermMemory
+                              .map((ref) => `${formatTaskReferenceKind(ref.kind)}:${ref.label || ref.id}`)
+                              .join('；')
+                            : '无'}
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </aside>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1316,7 +2831,7 @@ function ProjectRedirect(): JSX.Element {
     const resolveTarget = async () => {
       const list = await projectApi.list();
       if (list.length > 0) {
-        setTargetPath(`/project/${list[0].id}`);
+        setTargetPath(getProjectWorkspacePath(list[0]));
       } else {
         setTargetPath('/');
       }
@@ -1342,6 +2857,40 @@ function ChapterRedirect(): JSX.Element {
   }
   const suffix = chapterId ? `?chapterId=${encodeURIComponent(chapterId)}` : '';
   return <Navigate to={`/project/${projectId}${suffix}`} replace />;
+}
+
+function NovelRedirect(): JSX.Element {
+  const [targetPath, setTargetPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const resolveTarget = async () => {
+      const list = await projectApi.list();
+      const novelProject = list.find((project) => project.type === 'novel');
+      if (novelProject) {
+        setTargetPath(`/novel/${novelProject.id}`);
+        return;
+      }
+
+      if (list.length > 0) {
+        setTargetPath(getProjectWorkspacePath(list[0]));
+        return;
+      }
+
+      setTargetPath('/');
+    };
+
+    void resolveTarget();
+  }, []);
+
+  if (!targetPath) {
+    return (
+      <div className="page-shell">
+        <Loading />
+      </div>
+    );
+  }
+
+  return <Navigate to={targetPath} replace />;
 }
 
 function App(): JSX.Element {
@@ -1381,6 +2930,8 @@ function App(): JSX.Element {
       <HashRouter>
         <Routes>
           <Route path="/" element={<ProjectListPage addToast={addToast} />} />
+          <Route path="/novel" element={<NovelRedirect />} />
+          <Route path="/novel/:projectId" element={<NovelWorkspacePage addToast={addToast} />} />
           <Route path="/project" element={<ProjectRedirect />} />
           <Route path="/project/:projectId" element={<ProjectWorkspacePage addToast={addToast} />} />
           <Route path="/project/:projectId/chapter/:chapterId" element={<ChapterRedirect />} />
@@ -1421,6 +2972,10 @@ function formatProjectType(type: string): string {
   return map[type] || type;
 }
 
+function getProjectWorkspacePath(project: Pick<Project, 'id' | 'type'>): string {
+  return project.type === 'novel' ? `/novel/${project.id}` : `/project/${project.id}`;
+}
+
 function formatStatus(status: string): string {
   const map: Record<string, string> = {
     todo: '待开始',
@@ -1443,6 +2998,59 @@ function intentLabel(intent: string): string {
   return map[intent] || intent;
 }
 
+function taskTypeLabel(taskType: NovelTaskType): string {
+  const map: Record<NovelTaskType, string> = {
+    advance_scene: '推进场景',
+    expand_scene: '扩写场景',
+    rewrite_scene: '深改剧情',
+    polish_scene: '快速润色',
+    polish: '快速润色',
+    rewrite_plot: '深改剧情',
+  };
+  return map[taskType] || taskType;
+}
+
+function routeLabel(route: string): string {
+  const map: Record<string, string> = {
+    'fast-path': 'Fast Path',
+    'standard-path': 'Standard Path',
+    'deep-path': 'Deep Path',
+  };
+  return map[route] || route;
+}
+
+function complexityLabel(value: string): string {
+  const map: Record<string, string> = {
+    quick: 'Quick',
+    standard: 'Standard',
+    deep: 'Deep',
+  };
+  return map[value] || value;
+}
+
+function formatTaskReferenceKind(kind: string): string {
+  const map: Record<string, string> = {
+    project: '项目',
+    chapter: '章节',
+    character: '角色',
+    timeline_entry: '章节目标',
+    continuity_issue: '连续性问题',
+    story_bible: 'Story Bible',
+    memory_card: '记忆卡',
+    retcon_decision: 'Retcon',
+  };
+  return map[kind] || kind;
+}
+
+function formatRetconStatus(status: string): string {
+  const map: Record<string, string> = {
+    proposed: '待批准',
+    approved: '已批准',
+    rolled_back: '已回滚',
+  };
+  return map[status] || status;
+}
+
 function formatIssueType(type: string): string {
   const map: Record<string, string> = {
     missing_chapter: '缺章',
@@ -1453,6 +3061,82 @@ function formatIssueType(type: string): string {
     outline_drift: '大纲偏离',
   };
   return map[type] || type;
+}
+
+function formatCandidateDraftStatus(status: string): string {
+  const map: Record<string, string> = {
+    pending_review: '待审阅',
+    needs_revision: '待修订',
+    approved: '已通过',
+    rejected: '已放弃',
+    adopted: '已采纳',
+    superseded: '已过期',
+  };
+  return map[status] || status;
+}
+
+function formatChapterGoalStatus(status: string): string {
+  const map: Record<string, string> = {
+    planned: '已规划',
+    drafting: '写作中',
+    revising: '修订中',
+    completed: '已完成',
+  };
+  return map[status] || status;
+}
+
+function formatContinuityIssueType(type: string): string {
+  const map: Record<string, string> = {
+    world_rule_conflict: '世界规则冲突',
+    character_ooc: '人物失真',
+    timeline_conflict: '时间线冲突',
+    relationship_conflict: '关系冲突',
+    foreshadow_gap: '伏笔/回报缺失',
+    plot_gap: '剧情偏离',
+    tone_drift: '语气漂移',
+  };
+  return map[type] || type;
+}
+
+function formatContinuitySeverity(severity: string): string {
+  const map: Record<string, string> = {
+    info: '提示',
+    warning: '警告',
+    error: '阻塞',
+  };
+  return map[severity] || severity;
+}
+
+function formatMemoryCardKind(kind: string): string {
+  const map: Record<string, string> = {
+    character: '角色',
+    world_rule: '世界规则',
+    relationship: '关系',
+    timeline: '时间线',
+    plot_decision: '剧情决议',
+    tone: '语气',
+  };
+  return map[kind] || kind;
+}
+
+function mergeCandidateDrafts(drafts: CandidateDraft[]): CandidateDraft[] {
+  const draftMap = new Map<string, CandidateDraft>();
+  for (const draft of drafts) {
+    if (!draftMap.has(draft.draftId)) {
+      draftMap.set(draft.draftId, draft);
+    }
+  }
+  return Array.from(draftMap.values());
+}
+
+function mergeContinuityReports(reports: ContinuityReport[]): ContinuityReport[] {
+  const reportMap = new Map<string, ContinuityReport>();
+  for (const report of reports) {
+    if (!reportMap.has(report.reportId)) {
+      reportMap.set(report.reportId, report);
+    }
+  }
+  return Array.from(reportMap.values());
 }
 
 export default App;

@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { app } from 'electron';
-import { MockLLMAdapter, RealLLMAdapter, AIStrategyManager } from '@zide/infrastructure';
+import { MockLLMAdapter, RealLLMAdapter, AIStrategyManager, SimpleIndexAdapter } from '@zide/infrastructure';
 import { GenerateContentUseCase } from '@zide/application';
 import { ChapterIntent } from '@zide/domain';
 import { LLMProviderConfig } from '@zide/application';
@@ -52,21 +52,19 @@ export async function initializeAIHandlers(): Promise<void> {
 }
 
 // 创建用例实例（使用服务容器单例）
-function createGenerateUseCase(): GenerateContentUseCase {
-  // 从策略管理器获取上下文压缩配置
+export function createGenerateUseCase(): GenerateContentUseCase {
+  return new GenerateContentUseCase(llmAdapter, createAIIndexAdapter(), serviceContainer.chapterRepo);
+}
+
+export function createAIIndexAdapter(): SimpleIndexAdapter {
   const contextConfig = strategyManager.getContextConfig();
 
-  // 使用策略配置创建索引适配器（包含 ContextCompressor）
-  // 这里暂时还需要创建新的，因为配置可能每次不同
-  const { SimpleIndexAdapter } = require('@zide/infrastructure');
-  const indexAdapter = new SimpleIndexAdapter(serviceContainer.runtimeBasePath, {
+  return new SimpleIndexAdapter(serviceContainer.runtimeBasePath, {
     maxProjectContextChars: contextConfig.maxProjectContextChars,
     maxRelatedChapters: contextConfig.maxRelatedChapters,
     compressionStrategy: contextConfig.compressionStrategy,
     tokenBudget: 8000,
   });
-
-  return new GenerateContentUseCase(llmAdapter, indexAdapter, serviceContainer.chapterRepo);
 }
 
 function createIpcError(message: string, code: ErrorCode, details?: Record<string, unknown>): Error {

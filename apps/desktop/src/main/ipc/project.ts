@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { FileProjectRepo, MockLLMAdapter, RealLLMAdapter } from '@zide/infrastructure';
+import { FileProjectRepo, FileStoryBibleRepo, MockLLMAdapter, RealLLMAdapter } from '@zide/infrastructure';
 import { CreateProjectUseCase } from '@zide/application';
 import { ProjectType, WritingTone } from '@zide/domain';
 import { getCurrentLLMAdapter, ensureLLMReadyForAction } from './ai';
@@ -113,6 +113,24 @@ export function registerProjectHandlers(): void {
           writingTone: generatedWritingTone,
           targetAudience: generatedTargetAudience,
         });
+      }
+
+      if (params.type === ProjectType.NOVEL) {
+        const { StoryBibleUseCase } = await import('@zide/application');
+        const storyBibleRepo = new FileStoryBibleRepo(getRuntimeBasePath());
+        const storyBibleUseCase = new StoryBibleUseCase(
+          storyBibleRepo,
+          repo,
+          config.idea?.trim() ? getCurrentLLMAdapter() : undefined
+        );
+
+        if (config.idea?.trim()) {
+          await storyBibleUseCase.generate(project.id, config.idea).catch(async () => {
+            await storyBibleUseCase.bootstrap(project.id, config.idea);
+          });
+        } else {
+          await storyBibleUseCase.bootstrap(project.id, config.description || config.name);
+        }
       }
 
       const latestProject = await repo.findById(project.id);

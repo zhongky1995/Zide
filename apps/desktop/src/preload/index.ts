@@ -45,6 +45,19 @@ const api = {
   // ========== AI 操作 ==========
   aiGenerate: (projectId: string, chapterId: string, intent: string, customPrompt?: string) =>
     ipcRenderer.invoke('ai:generate', projectId, chapterId, intent, customPrompt),
+  runTask: (task: any) => ipcRenderer.invoke('ai:task', task),
+  listCandidateDrafts: (projectId: string, chapterId: string) =>
+    ipcRenderer.invoke('ai:listCandidateDrafts', projectId, chapterId),
+  adoptCandidateDraft: (projectId: string, chapterId: string, draftId: string, force?: boolean) =>
+    ipcRenderer.invoke('ai:adoptCandidateDraft', projectId, chapterId, draftId, force),
+  rejectCandidateDraft: (projectId: string, chapterId: string, draftId: string) =>
+    ipcRenderer.invoke('ai:rejectCandidateDraft', projectId, chapterId, draftId),
+  listContinuityReports: (projectId: string, chapterId: string) =>
+    ipcRenderer.invoke('continuity:listByChapter', projectId, chapterId),
+  getContinuityReport: (projectId: string, chapterId: string, draftId: string) =>
+    ipcRenderer.invoke('continuity:getByDraft', projectId, chapterId, draftId),
+  regenerateContinuityReport: (projectId: string, chapterId: string, draftId: string) =>
+    ipcRenderer.invoke('continuity:regenerate', projectId, chapterId, draftId),
   aiContinue: (projectId: string, chapterId: string) =>
     ipcRenderer.invoke('ai:continue', projectId, chapterId),
   aiExpand: (projectId: string, chapterId: string) =>
@@ -71,6 +84,22 @@ const api = {
   aiGetIntentConfig: (intent: string) => ipcRenderer.invoke('ai:getIntentConfig', intent),
   aiChat: (projectId: string, message: string, chapterId?: string) =>
     ipcRenderer.invoke('ai:chat', projectId, message, chapterId),
+
+  // ========== 小说 Story Bible / Plot Board ==========
+  getStoryBible: (projectId: string) => ipcRenderer.invoke('storyBible:get', projectId),
+  generateStoryBible: (projectId: string, seed?: string) => ipcRenderer.invoke('storyBible:generate', projectId, seed),
+  updateStoryBible: (projectId: string, params: any) => ipcRenderer.invoke('storyBible:update', projectId, params),
+  confirmStoryBible: (projectId: string) => ipcRenderer.invoke('storyBible:confirm', projectId),
+  getPlotBoard: (projectId: string) => ipcRenderer.invoke('plotBoard:get', projectId),
+  updatePlotBoardChapterGoal: (projectId: string, chapterId: string, params: any) =>
+    ipcRenderer.invoke('plotBoard:updateChapterGoal', projectId, chapterId, params),
+  getLoreMemory: (projectId: string) => ipcRenderer.invoke('loreMemory:get', projectId),
+  syncLoreMemory: (projectId: string) => ipcRenderer.invoke('loreMemory:sync', projectId),
+  getManuscriptReadiness: (projectId: string) => ipcRenderer.invoke('manuscript:getReadiness', projectId),
+  listRetcons: (projectId: string) => ipcRenderer.invoke('retcon:list', projectId),
+  proposeRetcon: (projectId: string, params: any) => ipcRenderer.invoke('retcon:propose', projectId, params),
+  approveRetcon: (projectId: string, retconId: string) => ipcRenderer.invoke('retcon:approve', projectId, retconId),
+  rollbackRetcon: (projectId: string, retconId: string) => ipcRenderer.invoke('retcon:rollback', projectId, retconId),
 
   // ========== 上下文操作 ==========
   packContext: (projectId: string, chapterId: string) =>

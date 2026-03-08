@@ -1,5 +1,24 @@
 // API 服务层 - 封装与主进程的IPC通信
-import type { Project, CreateProjectParams, Chapter, ChapterSummary, Outline, AIOperation, Snapshot, ProjectMetrics } from '../types/api';
+import type {
+  Project,
+  CreateProjectParams,
+  Chapter,
+  ChapterSummary,
+  Outline,
+  AIOperation,
+  Snapshot,
+  ProjectMetrics,
+  CandidateDraft,
+  ContinuityReport,
+  StoryBible,
+  ChapterGoal,
+  PlotBoardSnapshot,
+  MemoryCard,
+  RetconDecision,
+  ManuscriptReadiness,
+  NovelTaskEnvelope,
+  NovelTaskExecutionResult,
+} from '../types/api';
 
 declare global {
   interface Window {
@@ -33,6 +52,13 @@ declare global {
 
       // AI操作
       aiGenerate: (projectId: string, chapterId: string, intent: string, customPrompt?: string) => Promise<any>;
+      runTask: (task: NovelTaskEnvelope) => Promise<any>;
+      listCandidateDrafts: (projectId: string, chapterId: string) => Promise<any>;
+      adoptCandidateDraft: (projectId: string, chapterId: string, draftId: string, force?: boolean) => Promise<any>;
+      rejectCandidateDraft: (projectId: string, chapterId: string, draftId: string) => Promise<any>;
+      listContinuityReports: (projectId: string, chapterId: string) => Promise<any>;
+      getContinuityReport: (projectId: string, chapterId: string, draftId: string) => Promise<any>;
+      regenerateContinuityReport: (projectId: string, chapterId: string, draftId: string) => Promise<any>;
       aiContinue: (projectId: string, chapterId: string) => Promise<any>;
       aiExpand: (projectId: string, chapterId: string) => Promise<any>;
       aiRewrite: (projectId: string, chapterId: string) => Promise<any>;
@@ -49,6 +75,21 @@ declare global {
       aiSetStrategy: (strategyId: string) => Promise<any>;
       aiGetIntentConfig: (intent: string) => Promise<any>;
       aiChat: (projectId: string, message: string, chapterId?: string) => Promise<any>;
+
+      // 小说 Story Bible / Plot Board
+      getStoryBible: (projectId: string) => Promise<any>;
+      generateStoryBible: (projectId: string, seed?: string) => Promise<any>;
+      updateStoryBible: (projectId: string, params: any) => Promise<any>;
+      confirmStoryBible: (projectId: string) => Promise<any>;
+      getPlotBoard: (projectId: string) => Promise<any>;
+      updatePlotBoardChapterGoal: (projectId: string, chapterId: string, params: any) => Promise<any>;
+      getLoreMemory: (projectId: string) => Promise<any>;
+      syncLoreMemory: (projectId: string) => Promise<any>;
+      getManuscriptReadiness: (projectId: string) => Promise<any>;
+      listRetcons: (projectId: string) => Promise<any>;
+      proposeRetcon: (projectId: string, params: any) => Promise<any>;
+      approveRetcon: (projectId: string, retconId: string) => Promise<any>;
+      rollbackRetcon: (projectId: string, retconId: string) => Promise<any>;
 
       // 上下文操作
       packContext: (projectId: string, chapterId: string) => Promise<any>;
@@ -261,6 +302,46 @@ export const chapterApi = {
 
 // AI API
 export const aiApi = {
+  async runTask(task: NovelTaskEnvelope): Promise<NovelTaskExecutionResult | null> {
+    const result = await api.runTask(task);
+    return extractData<NovelTaskExecutionResult>(result, '统一任务执行失败');
+  },
+
+  async listCandidateDrafts(projectId: string, chapterId: string): Promise<CandidateDraft[]> {
+    const result = await api.listCandidateDrafts(projectId, chapterId);
+    return extractData<CandidateDraft[]>(result, '获取候选稿列表失败') || [];
+  },
+
+  async adoptCandidateDraft(
+    projectId: string,
+    chapterId: string,
+    draftId: string,
+    force = false
+  ): Promise<{ chapter: Chapter; candidateDraft: CandidateDraft; continuityReport: ContinuityReport; forced: boolean; snapshotId?: string } | null> {
+    const result = await api.adoptCandidateDraft(projectId, chapterId, draftId, force);
+    return extractData<{ chapter: Chapter; candidateDraft: CandidateDraft; continuityReport: ContinuityReport; forced: boolean; snapshotId?: string }>(result, '采纳候选稿失败');
+  },
+
+  async rejectCandidateDraft(projectId: string, chapterId: string, draftId: string): Promise<CandidateDraft | null> {
+    const result = await api.rejectCandidateDraft(projectId, chapterId, draftId);
+    return extractData<CandidateDraft>(result, '放弃候选稿失败');
+  },
+
+  async listContinuityReports(projectId: string, chapterId: string): Promise<ContinuityReport[]> {
+    const result = await api.listContinuityReports(projectId, chapterId);
+    return extractData<ContinuityReport[]>(result, '获取连续性报告列表失败') || [];
+  },
+
+  async getContinuityReport(projectId: string, chapterId: string, draftId: string): Promise<ContinuityReport | null> {
+    const result = await api.getContinuityReport(projectId, chapterId, draftId);
+    return extractData<ContinuityReport>(result, '获取连续性报告失败');
+  },
+
+  async regenerateContinuityReport(projectId: string, chapterId: string, draftId: string): Promise<ContinuityReport | null> {
+    const result = await api.regenerateContinuityReport(projectId, chapterId, draftId);
+    return extractData<ContinuityReport>(result, '重新生成连续性报告失败');
+  },
+
   async generate(projectId: string, chapterId: string, intent: string, customPrompt?: string) {
     const result = await api.aiGenerate(projectId, chapterId, intent, customPrompt);
     return extractData(result, 'AI 生成失败');
@@ -299,6 +380,92 @@ export const aiApi = {
   async chat(projectId: string, message: string, chapterId?: string): Promise<{ message: string; model: string } | null> {
     const result = await api.aiChat(projectId, message, chapterId);
     return extractData<{ message: string; model: string }>(result, 'AI 对话失败');
+  },
+};
+
+export const storyBibleApi = {
+  async get(projectId: string): Promise<StoryBible | null> {
+    const result = await api.getStoryBible(projectId);
+    return extractData<StoryBible>(result, '获取 Story Bible 失败');
+  },
+
+  async generate(projectId: string, seed?: string): Promise<StoryBible | null> {
+    const result = await api.generateStoryBible(projectId, seed);
+    return extractData<StoryBible>(result, '生成 Story Bible 失败');
+  },
+
+  async update(projectId: string, params: Partial<StoryBible>): Promise<StoryBible | null> {
+    const result = await api.updateStoryBible(projectId, params);
+    return extractData<StoryBible>(result, '更新 Story Bible 失败');
+  },
+
+  async confirm(projectId: string): Promise<StoryBible | null> {
+    const result = await api.confirmStoryBible(projectId);
+    return extractData<StoryBible>(result, '确认 Story Bible 失败');
+  },
+};
+
+export const plotBoardApi = {
+  async get(projectId: string): Promise<PlotBoardSnapshot | null> {
+    const result = await api.getPlotBoard(projectId);
+    return extractData<PlotBoardSnapshot>(result, '获取 Plot Board 失败');
+  },
+
+  async updateChapterGoal(projectId: string, chapterId: string, params: Partial<ChapterGoal>): Promise<PlotBoardSnapshot | null> {
+    const result = await api.updatePlotBoardChapterGoal(projectId, chapterId, params);
+    return extractData<PlotBoardSnapshot>(result, '更新 Plot Board 章节目标失败');
+  },
+};
+
+export const loreMemoryApi = {
+  async get(projectId: string): Promise<MemoryCard[]> {
+    const result = await api.getLoreMemory(projectId);
+    return extractData<MemoryCard[]>(result, '获取 Lore Memory 失败') || [];
+  },
+
+  async sync(projectId: string): Promise<MemoryCard[]> {
+    const result = await api.syncLoreMemory(projectId);
+    return extractData<MemoryCard[]>(result, '同步 Lore Memory 失败') || [];
+  },
+};
+
+export const manuscriptApi = {
+  async getReadiness(projectId: string): Promise<ManuscriptReadiness | null> {
+    const result = await api.getManuscriptReadiness(projectId);
+    return extractData<ManuscriptReadiness>(result, '获取 Manuscript Readiness 失败');
+  },
+};
+
+export const retconApi = {
+  async list(projectId: string): Promise<RetconDecision[]> {
+    const result = await api.listRetcons(projectId);
+    return extractData<RetconDecision[]>(result, '获取 Retcon 列表失败') || [];
+  },
+
+  async propose(
+    projectId: string,
+    params: {
+      summary: string;
+      reason?: string;
+      affectedChapterIds?: string[];
+      affectedCharacters?: string[];
+    }
+  ): Promise<RetconDecision | null> {
+    const result = await api.proposeRetcon(projectId, params);
+    return extractData<RetconDecision>(result, '创建 Retcon 提案失败');
+  },
+
+  async approve(
+    projectId: string,
+    retconId: string
+  ): Promise<{ decision: RetconDecision; snapshotIds: string[] } | null> {
+    const result = await api.approveRetcon(projectId, retconId);
+    return extractData<{ decision: RetconDecision; snapshotIds: string[] }>(result, '批准 Retcon 失败');
+  },
+
+  async rollback(projectId: string, retconId: string): Promise<RetconDecision | null> {
+    const result = await api.rollbackRetcon(projectId, retconId);
+    return extractData<RetconDecision>(result, '回滚 Retcon 失败');
   },
 };
 
