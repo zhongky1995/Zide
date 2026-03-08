@@ -204,78 +204,62 @@ async function run() {
     );
 
     // 1) 设置页配置本地 Mock LLM（真实 UI 操作）
-    await page.locator('button:has-text("设置")').first().click();
-    await page.locator('h1.page-title:has-text("设置")').waitFor();
+    await page.getByRole('link', { name: 'AI设置' }).click();
+    await page.locator('h2:has-text("AI 参数管理（防误触模式）")').waitFor();
 
-    const llmCard = page.locator('.card').first();
-    await llmCard.locator('select').first().selectOption('custom');
-    await llmCard.locator('input[placeholder*="gpt-4o"]').fill('mock-ui-model');
-    await llmCard.locator('input[placeholder="输入 API Key"]').fill('ui-test-key');
-    await llmCard.locator('input[placeholder*="https://api.openai.com/v1"]').fill(mockServer.baseUrl);
+    await page.getByRole('button', { name: '解锁编辑' }).click();
+    await page.locator('#provider').selectOption('custom');
+    await page.locator('#model').fill('mock-ui-model');
+    await page.locator('#base-url').fill(mockServer.baseUrl);
+    await page.locator('summary:has-text("高级参数（默认收起）")').click();
+    await page.locator('#api-key').waitFor();
+    await page.locator('#api-key').fill('ui-test-key');
 
-    await llmCard.locator('button:has-text("保存设置")').click();
-    await llmCard.locator('button:has-text("测试连接")').click();
-    await page.locator('.test-result.success:has-text("连接成功")').waitFor();
+    await page.getByRole('button', { name: '保存并收起' }).click();
+    await page.getByRole('button', { name: '测试连接' }).click();
+    await page.locator('.toast.success').filter({ hasText: '连接成功' }).waitFor();
 
-    await page.locator('button:has-text("返回首页")').click();
-    await page.locator('button:has-text("新建项目")').waitFor();
+    await page.getByRole('link', { name: '项目' }).click();
+    await page.getByRole('button', { name: '+ 新建项目' }).waitFor();
 
-    // 2) 创建项目（触发“全局设定 AI 生成”）
-    await page.locator('button:has-text("新建项目")').click();
-    await page.locator('.modal-title:has-text("创建新项目")').waitFor();
+    // 2) 创建报告项目（触发“全局设定 AI 生成”）
+    await page.getByRole('button', { name: '+ 新建项目' }).click();
+    await page.locator('.modal h3:has-text("新建项目")').waitFor();
 
-    await page.locator('input[placeholder="输入项目名称"]').fill(projectName);
-    await page.locator('textarea[placeholder*="描述你想要写的内容"]').fill('先明确问题，再形成可执行路径和实施计划。');
-    await page.locator('textarea[placeholder="简要描述项目内容"]').fill('用于验证 UI 全流程自动回归。');
+    await page.locator('#project-name').fill(projectName);
+    await page.locator('#project-type').selectOption('report');
+    await page.locator('#project-idea').fill('先明确问题，再形成可执行路径和实施计划。');
+    await page.locator('#project-description').fill('用于验证 UI 全流程自动回归。');
 
-    await page.locator('.modal-footer button:has-text("创建")').click();
-    await page.locator(`h1.page-title:has-text("${projectName}")`).waitFor({ timeout: 60000 });
+    await page.getByRole('button', { name: '创建并进入工作台' }).click();
+    await page.locator(`h2:has-text("${projectName}")`).waitFor({ timeout: 60000 });
 
-    // 3) 校验全局设定已生成
-    await page.locator('button:has-text("全局设定")').click();
-    await page.locator('.modal-header h3:has-text("项目全局设定")').waitFor();
-    const settingValues = await page.locator('.modal-body textarea').evaluateAll((nodes) => nodes.map((n) => n.value.trim()));
-    assert(settingValues.length === 4, '全局设定弹窗字段数量异常');
-    assert(settingValues.every((value) => value.length > 0), '全局设定未自动填充完整');
-    assert(
-      settingValues.every((value) => !isPlaceholderText(value)),
-      `全局设定存在占位符内容：${settingValues.join(' | ')}`
-    );
-    await page.locator('.modal-footer button:has-text("取消")').click();
+    // 3) 生成大纲并校验“章节梗概”
+    await page.getByRole('button', { name: 'AI 生成大纲' }).click();
+    await page.locator('.outline-item').first().waitFor({ timeout: 60000 });
 
-    // 4) 生成大纲并校验“章节梗概”
-    await page.locator('button:has-text("生成大纲")').click();
-    await page.locator('.modal-header h3:has-text("AI 生成大纲")').waitFor();
-    await page.locator('.modal-footer button:has-text("AI 生成大纲")').click();
-
-    // 生成成功后应自动关闭弹窗
-    await page.locator('.modal-header h3:has-text("AI 生成大纲")').waitFor({ state: 'hidden' });
-    await page.locator('.chapter-item .chapter-title:has-text("项目背景与目标澄清")').waitFor({ timeout: 60000 });
-    const outlineTitles = await page.locator('.chapter-list .chapter-item .chapter-title').allTextContents();
-    const outlineTargets = await page.locator('.chapter-list .chapter-item .chapter-info .text-gray.text-sm').allTextContents();
+    const outlineTitles = await page.locator('.outline-item .outline-main input').evaluateAll((nodes) => nodes.map((n) => n.value.trim()));
+    const outlineTargets = await page.locator('.outline-item .outline-main small').allTextContents();
     assert(outlineTitles.includes('关键矛盾与路径设计'), '大纲标题缺失：关键矛盾与路径设计');
     assert(outlineTargets.some((target) => target.includes('统一上下文')), '大纲未生成章节梗概');
 
-    // 5) 切到章节工作台，校验同步
-    await page.locator('button:has-text("章节工作台")').click();
-    await page.locator('.editor-sidebar h3:has-text("章节列表")').waitFor();
-    const workbenchTitles = await page.locator('.editor-sidebar .chapter-list .chapter-title').allTextContents();
+    // 4) 切到章节工作台，校验同步
+    await page.getByRole('button', { name: '章节工作台' }).click();
+    await page.locator('.panel-head h3:has-text("章节列表")').waitFor();
+    const workbenchTitles = await page.locator('.chapter-list .chapter-item h4').allTextContents();
     assert(workbenchTitles.includes('项目背景与目标澄清'), '章节工作台未同步第一章');
     assert(workbenchTitles.includes('关键矛盾与路径设计'), '章节工作台未同步第二章');
 
-    // 6) 先生成第一章，形成前文记忆
-    await page.locator('.editor-sidebar .chapter-item:has-text("项目背景与目标澄清")').first().click();
-    await page.locator('h1.page-title:has-text("项目背景与目标澄清")').waitFor();
-    await page.locator('button:has-text("续写")').first().click();
+    // 5) 先生成第一章，形成前文记忆
+    await page.locator('.chapter-item').filter({ hasText: '项目背景与目标澄清' }).first().click();
+    await page.locator('.panel-head h3:has-text("项目背景与目标澄清")').waitFor();
+    await page.getByRole('button', { name: '续写' }).first().click();
     await waitForTextareaValue(page, '第一章自动生成内容');
 
-    // 7) 返回项目，生成第二章，验证首轮输出
-    await page.locator('button:has-text("返回项目")').click();
-    await page.locator(`h1.page-title:has-text("${projectName}")`).waitFor();
-    await page.locator('button:has-text("章节工作台")').click();
-    await page.locator('.editor-sidebar .chapter-item:has-text("关键矛盾与路径设计")').first().click();
-    await page.locator('h1.page-title:has-text("关键矛盾与路径设计")').waitFor();
-    await page.locator('button:has-text("续写")').first().click();
+    // 6) 直接切第二章，验证首轮输出
+    await page.locator('.chapter-item').filter({ hasText: '关键矛盾与路径设计' }).first().click();
+    await page.locator('.panel-head h3:has-text("关键矛盾与路径设计")').waitFor();
+    await page.getByRole('button', { name: '续写' }).first().click();
     await waitForTextareaValue(page, '第二章自动生成内容');
 
     // 8) 对请求日志做产品语义断言

@@ -9,6 +9,12 @@ export * from './ports/ExportPort';
 export * from './ports/RuleEnginePort';
 export * from './ports/MetricsPort';
 export * from './ports/SettingsPort';
+export * from './ports/CandidateDraftRepoPort';
+export * from './ports/StoryBibleRepoPort';
+export * from './ports/ChapterGoalRepoPort';
+export * from './ports/ContinuityReportRepoPort';
+export * from './ports/MemoryCardRepoPort';
+export * from './ports/RetconDecisionRepoPort';
 
 // 用例导出
 export * from './usecases/CreateProjectUseCase';
@@ -22,3 +28,13 @@ export * from './usecases/CheckUseCases';
 export * from './usecases/ExportUseCases';
 export * from './usecases/MetricsUseCases';
 export * from './usecases/SettingsUseCases';
+export * from './usecases/CandidateDraftUseCases';
+export * from './usecases/StoryBibleUseCases';
+export * from './usecases/PlotBoardUseCases';
+export * from './usecases/ContinuityReviewUseCases';
+export * from './usecases/LoreMemoryUseCases';
+export * from './usecases/ManuscriptUseCases';
+export * from './usecases/TaskRouterUseCases';
+export * from './usecases/TaskContextUseCases';
+export * from './usecases/TaskPipelineUseCases';
+export * from './usecases/RetconFlowUseCases';

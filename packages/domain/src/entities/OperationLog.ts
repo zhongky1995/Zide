@@ -31,6 +31,7 @@ export enum OperationType {
   // AI 操作
   AI_GENERATE = 'ai_generate',
   AI_RETRY = 'ai_retry',
+  AI_ADOPT = 'ai_adopt',
 
   // 快照操作
   SNAPSHOT_CREATE = 'snapshot_create',
@@ -41,6 +42,10 @@ export enum OperationType {
 
   // 导出操作
   EXPORT_RUN = 'export_run',
+
+  // Retcon 操作
+  RETCON_APPLY = 'retcon_apply',
+  RETCON_ROLLBACK = 'retcon_rollback',
 }
 
 // 统计指标
